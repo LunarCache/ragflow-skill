@@ -1,0 +1,4 @@
+interface:
+  display_name: "RAGFlow Skill"
+  short_description: "Operate RAGFlow v0.25.x datasets, documents, parsing, retrieval, chat assistants, agents, and model discovery via bundled CLI."
+  default_prompt: "Use $ragflow-skill to manage RAGFlow datasets, upload and parse documents, retrieve chunks, create chat assistants and sessions, build agents, discover LLM models, and troubleshoot RAGFlow deployments."

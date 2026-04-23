@@ -1,0 +1,328 @@
+# Command Reference
+
+Full CLI reference for `scripts/ragflow.js`, organized by workflow scenario rather than resource type.
+
+Use `--json` on any command to suppress status text and print only machine-readable JSON.
+JSON-valued options such as `--parser-config`, `--prompt-config`, and `--dsl` accept either inline JSON or `@path/to/file.json`.
+
+On command failure with `--json`, the CLI exits non-zero and prints a structured error envelope:
+
+```json
+{
+  "error": {
+    "message": "API Error: Unauthorized",
+    "raw_message": "Unauthorized",
+    "code": 401,
+    "status": 401,
+    "command": "list-models"
+  }
+}
+```
+
+## Table of Contents
+
+- [Scenario Map](#scenario-map)
+- [Knowledge Base Setup](#knowledge-base-setup)
+- [Document Ingestion](#document-ingestion)
+- [Parsing and Chunking](#parsing-and-chunking)
+- [Information Retrieval](#information-retrieval)
+- [RAG Assistant Operation](#rag-assistant-operation)
+- [Agent Operation](#agent-operation)
+- [Discovery and Configuration](#discovery-and-configuration)
+- [System Operations](#system-operations)
+
+## Scenario Map
+
+| Scenario | Use it for |
+|---|---|
+| [Knowledge Base Setup](#knowledge-base-setup) | Create and maintain datasets before ingesting files |
+| [Document Ingestion](#document-ingestion) | Upload, inspect, update, and remove source documents |
+| [Parsing and Chunking](#parsing-and-chunking) | Turn documents into searchable chunks and manage chunk content |
+| [Information Retrieval](#information-retrieval) | Query datasets directly without creating a chat assistant |
+| [RAG Assistant Operation](#rag-assistant-operation) | Create chat assistants, manage sessions, and run Q&A |
+| [Agent Operation](#agent-operation) | Create tool-capable agents, manage sessions, and run agent chat |
+| [Discovery and Configuration](#discovery-and-configuration) | Inspect available LLM models before choosing downstream workflows |
+| [System Operations](#system-operations) | Read version and log-level settings |
+
+## Knowledge Base Setup
+
+Use this section when the user is creating or maintaining the dataset container that everything else depends on.
+
+```bash
+node {baseDir}/scripts/ragflow.js create-dataset --name "Tech Docs" --chunk-method naive
+node {baseDir}/scripts/ragflow.js create-dataset --name "Tech Docs" --embedding-model "text-embedding-v4@Tongyi-Qianwen"
+node {baseDir}/scripts/ragflow.js list-datasets
+node {baseDir}/scripts/ragflow.js get-dataset --id <id>
+node {baseDir}/scripts/ragflow.js update-dataset --id <id> --name "New Name"
+node {baseDir}/scripts/ragflow.js delete-datasets --ids <id1> <id2>
+```
+
+When you provide `--embedding-model` to a real v0.25.0 server, use the tenant model identifier format `<model_name>@<provider>`, for example `text-embedding-v4@Tongyi-Qianwen`. Use `list-models` to discover available model/provider pairs.
+
+Typical flow:
+
+1. `create-dataset`
+2. `list-datasets` or `get-dataset`
+3. `update-dataset` if metadata or chunk method needs adjustment
+4. `delete-datasets` only after explicit confirmation
+
+## Document Ingestion
+
+Use this section when the user needs to get files into a dataset or inspect document-level metadata.
+
+```bash
+node {baseDir}/scripts/ragflow.js upload-documents --dataset <id> --files ./doc1.pdf ./doc2.txt
+node {baseDir}/scripts/ragflow.js list-documents --dataset <id> --metadata-condition @metadata_condition.json
+node {baseDir}/scripts/ragflow.js get-document --dataset <id> --id <doc_id>
+node {baseDir}/scripts/ragflow.js update-document --dataset <id> --id <doc_id> --name "New Name"
+node {baseDir}/scripts/ragflow.js update-document --dataset <id> --id <doc_id> --parser-config @parser_config.json --meta-fields @meta_fields.json
+node {baseDir}/scripts/ragflow.js metadata-summary --dataset <id> --doc-ids <doc_id1> <doc_id2>
+node {baseDir}/scripts/ragflow.js delete-documents --dataset <id> --ids <doc_id1>
+```
+
+`update-document` follows the v0.25.0 RAGFlow source and sends `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. It accepts `name`, `parser_config`, `chunk_method`, `enabled`, and `meta_fields`.
+
+`list-documents` supports `metadata`, `metadata_condition`, `return_empty_metadata`, `orderby`, `desc`, `suffix`, `types`, and `run`.
+
+Use this when you need to:
+
+- upload raw source files
+- inspect a document before parsing
+- rename or adjust a document record
+- delete a document by explicit ID
+
+## Parsing and Chunking
+
+Use this section after document upload, or when the user wants to control chunk generation directly.
+
+### Parsing workflow
+
+```bash
+node {baseDir}/scripts/ragflow.js start-parsing --dataset <id> --doc-ids <doc_id1>
+node {baseDir}/scripts/ragflow.js stop-parsing --dataset <id> --doc-ids <doc_id1>
+node {baseDir}/scripts/ragflow.js wait-parsing --dataset <id> --doc-ids <doc_id1> --timeout 120
+```
+
+Parsing status is observable through `list-documents` by inspecting the `run` field: `UNSTART`, `RUNNING`, `CANCEL`, `DONE`, `FAIL`.
+The `run` filter accepts either numeric values (`0`-`4`) or these text labels.
+
+### Chunk operations
+
+```bash
+node {baseDir}/scripts/ragflow.js list-chunks --dataset <id> --document <doc_id>
+node {baseDir}/scripts/ragflow.js list-chunks --dataset <id> --document <doc_id> --id <chunk_id>
+node {baseDir}/scripts/ragflow.js add-chunk --dataset <id> --document <doc_id> --content "chunk content"
+node {baseDir}/scripts/ragflow.js update-chunk --dataset <id> --document <doc_id> --chunk <chunk_id> --content "updated content"
+node {baseDir}/scripts/ragflow.js delete-chunks --dataset <id> --document <doc_id> --chunk-ids <id1>
+node {baseDir}/scripts/repro-delete-chunks.js
+```
+
+`add-chunk` writes directly to the document store and returns the generated chunk ID immediately. On Elasticsearch/OpenSearch-style stores, exact `GET` by ID can see a new chunk before search/delete-by-query can see it because insert uses the store refresh cycle. `delete-chunks` handles this by retrying the v0.25.0 transient response `rm_chunk deleted chunks 0, expect N` only after an exact ID lookup confirms the target chunk still exists. Tune this with `RAGFLOW_DELETE_CHUNK_RETRIES` and `RAGFLOW_DELETE_CHUNK_RETRY_DELAY_MS`.
+
+With `--json`, `delete-chunks` returns a structured envelope instead of the bare server result:
+
+```json
+{
+  "result": {},
+  "requested_chunk_ids": ["<chunk_id1>"],
+  "existing_chunk_ids": ["<chunk_id1>"],
+  "missing_chunk_ids": [],
+  "visibility_checked": true,
+  "retry_count": 1,
+  "retries": [
+    {
+      "attempt": 0,
+      "next_attempt": 2,
+      "max_retries": 3,
+      "existing_chunk_ids": ["<chunk_id1>"],
+      "missing_chunk_ids": []
+    }
+  ]
+}
+```
+
+If exact-ID checks prove that a target chunk is missing, the command exits non-zero and emits JSON containing `error`, `requested_chunk_ids`, `existing_chunk_ids`, `missing_chunk_ids`, `retry_count`, `retries`, and `delete_chunk_diagnostics`.
+
+If a real server still returns `rm_chunk deleted chunks 0, expect 1` after retries, run `scripts/repro-delete-chunks.js`. The repro creates temporary resources, tries immediate deletion and retry/backoff without the client-side retry wrapper, prints a JSON diagnosis, and removes its dataset.
+
+### Chunk methods
+
+| Method | Use Case |
+|--------|----------|
+| `naive` | General chunking (default) |
+| `manual` | Manual documents |
+| `qna` | Q&A pairs |
+| `table` | Table data |
+| `paper` | Academic papers |
+| `book` | Books |
+| `laws` | Legal documents |
+| `presentation` | Presentations |
+| `picture` | Image OCR |
+| `one` | Whole document as one chunk |
+
+## Information Retrieval
+
+Use this section when the user wants retrieval results directly instead of creating a chat assistant or agent.
+
+```bash
+# Basic retrieval
+node {baseDir}/scripts/ragflow.js retrieve --question "What is RAG?" --datasets <id>
+
+# Advanced retrieval with keyword + knowledge graph
+node {baseDir}/scripts/ragflow.js retrieve \
+  --question "machine learning algorithms" \
+  --datasets <id1> <id2> \
+  --similarity 0.3 \
+  --top-n 10 \
+  --rerank <rerank_model_id> \
+  --keyword \
+  --kg
+```
+
+### Retrieval parameters
+
+| Parameter | Short | Default | Description |
+|-----------|-------|---------|-------------|
+| `--question` | `-q` | - | Search question (required) |
+| `--datasets` | `-d` | - | Dataset IDs |
+| `--similarity` | `-s` | 0.2 | Similarity threshold (0-1) |
+| `--top-n` | `-n` | 5 | Number of retrieved chunks; sent as RAGFlow `page_size` |
+| `--top-k` | `-k` | 1024 | Number of candidates |
+| `--vector-weight` | `-w` | 0.3 | Vector similarity weight (0-1) |
+| `--rerank` | `-r` | - | Rerank model ID |
+| `--keyword` | | false | Enable keyword search |
+| `--kg` | | false | Enable knowledge graph; sent as RAGFlow `use_kg` |
+| `--cross-langs` | | - | Cross-language targets |
+
+## RAG Assistant Operation
+
+Use this section when the user wants a dataset-backed chat assistant with reusable sessions.
+
+### Assistant lifecycle
+
+```bash
+node {baseDir}/scripts/ragflow.js list-chats
+node {baseDir}/scripts/ragflow.js create-chat --name "Tech Q&A" --datasets <id1> <id2> --llm-id <model_id>
+node {baseDir}/scripts/ragflow.js get-chat --id <chat_id>
+node {baseDir}/scripts/ragflow.js update-chat --id <chat_id> --name "New Name"
+node {baseDir}/scripts/ragflow.js update-chat --id <chat_id> --prompt-config @prompt_config.json
+node {baseDir}/scripts/ragflow.js patch-chat --id <chat_id> --prompt "Use the dataset"
+node {baseDir}/scripts/ragflow.js delete-chats --ids <id1> <id2>
+```
+
+### Session management
+
+```bash
+node {baseDir}/scripts/ragflow.js list-sessions --chat <chat_id>
+node {baseDir}/scripts/ragflow.js create-session --chat <chat_id> --name "New Session"
+node {baseDir}/scripts/ragflow.js delete-sessions --chat <chat_id> --ids <session_id1>
+```
+
+### Ask the assistant
+
+```bash
+node {baseDir}/scripts/ragflow.js chat --chat <chat_id> --session <session_id> --question "Hello"
+node {baseDir}/scripts/ragflow.js chat-session --chat <chat_id> --session <session_id> --messages @session_messages.json
+node {baseDir}/scripts/ragflow.js chat-session --chat <chat_id> --session <session_id> --question "Hello"
+```
+
+`chat-session` uses the API-key SDK route `POST /api/v1/chats/{chat_id}/completions` with `session_id` in the body. The v0.25.0 login-session route `POST /api/v1/chats/{chat_id}/sessions/{session_id}/completions` is not used by this CLI. When `--messages` is provided, the CLI extracts the last `role: "user"` message as `question`; use `--question` when you already have a single user prompt.
+
+Use this path when the user wants multi-turn Q&A over documents without building a full agent workflow.
+
+## Agent Operation
+
+Use this section when the user wants a more autonomous workflow built around an agent DSL and agent sessions.
+
+### Agent lifecycle
+
+```bash
+node {baseDir}/scripts/ragflow.js list-agents
+node {baseDir}/scripts/ragflow.js create-agent --title "Assistant" --dsl '<dsl_json>'
+node {baseDir}/scripts/ragflow.js create-agent --title "Assistant" --dsl @agent_dsl.json
+node {baseDir}/scripts/ragflow.js get-agent --id <agent_id>
+node {baseDir}/scripts/ragflow.js update-agent --id <agent_id> --title "New Name"
+node {baseDir}/scripts/ragflow.js delete-agents --ids <id1> <id2>
+```
+
+Agents require a DSL workflow definition. A minimal DSL:
+
+```json
+{
+  "components": {
+    "begin": {
+      "obj": {
+        "component_name": "Begin",
+        "params": {
+          "mode": "conversational",
+          "prologue": "Hello"
+        }
+      },
+      "downstream": [],
+      "upstream": []
+    }
+  },
+  "history": [],
+  "path": [],
+  "retrieval": [],
+  "globals": {
+    "sys.query": "",
+    "sys.user_id": "",
+    "sys.conversation_turns": 0,
+    "sys.files": [],
+    "sys.history": []
+  },
+  "graph": {
+    "edges": [],
+    "nodes": [
+      {
+        "id": "begin",
+        "data": { "name": "Begin" },
+        "position": { "x": 0, "y": 0 },
+        "type": "begin"
+      }
+    ]
+  }
+}
+```
+
+### Agent session management
+
+```bash
+node {baseDir}/scripts/ragflow.js list-agent-sessions --agent <agent_id>
+node {baseDir}/scripts/ragflow.js create-agent-session --agent <agent_id>
+node {baseDir}/scripts/ragflow.js delete-agent-sessions --agent <agent_id> --ids <session_id1>
+```
+
+### Ask the agent
+
+```bash
+node {baseDir}/scripts/ragflow.js agent-chat --agent <agent_id> --session <session_id> --question "Hello"
+```
+
+Use this path when the user explicitly wants an agent workflow instead of a simple retrieval assistant.
+
+## Discovery and Configuration
+
+Use this section when the user needs to inspect available models before creating datasets, assistants, or agents.
+
+```bash
+node {baseDir}/scripts/ragflow.js list-models
+node {baseDir}/scripts/ragflow.js list-models --include-details
+node {baseDir}/scripts/ragflow.js list-models --group-by factory
+node {baseDir}/scripts/ragflow.js list-models --all
+```
+
+This is usually the first stop when the user is troubleshooting model availability or deciding which model to use downstream.
+
+RAGFlow v0.25.0 exposes model discovery at `/v1/llm/my_llms`. If the endpoint requires web-session authentication, provide `RAGFLOW_WEB_TOKEN`.
+
+## System Operations
+
+Use this section when the user needs version or log-level configuration.
+
+```bash
+node {baseDir}/scripts/ragflow.js system-version
+node {baseDir}/scripts/ragflow.js get-log-levels
+node {baseDir}/scripts/ragflow.js set-log-level --pkg-name ragflow --level INFO
+```

@@ -1,0 +1,355 @@
+# Programmatic API and Configuration
+
+## Table of Contents
+
+- [Setup](#setup)
+- [Dataset](#dataset)
+- [Document](#document)
+- [Parsing](#parsing)
+- [Chunk](#chunk)
+- [Retrieval](#retrieval)
+- [Chat Assistant](#chat-assistant)
+- [Session](#session)
+- [Chat Conversation](#chat-conversation)
+- [Agent](#agent)
+- [Agent Session](#agent-session)
+- [Agent Chat](#agent-chat)
+- [LLM Models](#llm-models)
+- [System](#system)
+- [Utility](#utility)
+- [Configuration](#configuration)
+
+## Setup
+
+```javascript
+const { createClient } = require("{baseDir}/lib/api.js");
+const client = createClient();
+```
+
+`createClient()` reads `RAGFLOW_URL` and `RAGFLOW_API_KEY` from the environment and then fills missing values from the bundled `.env` file. Existing environment variables take precedence. See [Configuration](#configuration) below.
+
+## Dataset
+
+```javascript
+// List datasets (supports pagination: page, page_size, id, name)
+const datasets = await client.listDatasets({ page: 1, page_size: 10 });
+
+// Get a single dataset by ID
+const dataset = await client.getDataset("<dataset_id>");
+
+// Create a dataset
+const dataset = await client.createDataset({
+  name: "Tech Docs",
+  chunk_method: "naive",
+});
+
+// Update a dataset
+await client.updateDataset("<dataset_id>", { name: "New Name" });
+
+// Delete datasets by IDs
+await client.deleteDatasets(["<id1>", "<id2>"]);
+```
+
+## Document
+
+```javascript
+// Upload documents
+await client.uploadDocuments("<dataset_id>", ["./report.pdf", "./notes.txt"]);
+
+// List documents (supports page, page_size, id, name, orderby, desc, keywords, suffix, types, run, metadata, metadata_condition, return_empty_metadata)
+const docs = await client.listDocuments("<dataset_id>");
+
+// Get a single document by ID
+const doc = await client.getDocument("<dataset_id>", "<doc_id>");
+
+// Update a document
+await client.updateDocument("<dataset_id>", "<doc_id>", {
+  name: "Renamed",
+  parser_config: { pages: [[1, 2]] },
+  chunk_method: "knowledge_graph",
+  enabled: 1,
+  meta_fields: { author: "Alice" },
+});
+
+// Delete documents by IDs
+await client.deleteDocuments("<dataset_id>", ["<doc_id1>", "<doc_id2>"]);
+```
+
+RAGFlow v0.25.0 defines document updates as `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. `updateDocument()` sends that request directly.
+
+You can also filter documents by metadata:
+
+```javascript
+const docs = await client.listDocuments("<dataset_id>", {
+  metadata_condition: JSON.stringify({
+    logic: "and",
+    conditions: [{ name: "status", comparison_operator: "=", value: "published" }],
+  }),
+});
+```
+
+You can also summarize metadata across documents:
+
+```javascript
+const summary = await client.metadataSummary("<dataset_id>", ["<doc_id1>", "<doc_id2>"]);
+// Returns: { summary: [...] }
+```
+
+## Parsing
+
+```javascript
+// Start parsing (returns immediately)
+await client.startParsing("<dataset_id>", ["<doc_id1>"]);
+
+// Stop parsing
+await client.stopParsing("<dataset_id>", ["<doc_id1>"]);
+
+// Wait for parsing to complete (polls until DONE or FAIL)
+// Documents stuck in CANCEL keep polling until timeout.
+const results = await client.waitForParsing("<dataset_id>", ["<doc_id1>"], {
+  interval: 3000,   // poll interval in ms (default: 3000)
+  maxWait: 120000,  // max wait in ms (default: 120000)
+});
+```
+
+## Chunk
+
+```javascript
+// List chunks (supports pagination: page, page_size, keywords)
+const chunks = await client.listChunks("<dataset_id>", "<doc_id>");
+
+// Exact chunk lookup by ID
+const chunk = await client.getChunk("<dataset_id>", "<doc_id>", "<chunk_id>");
+
+// Add a chunk
+await client.addChunk("<dataset_id>", "<doc_id>", {
+  content: "Custom chunk text",
+  important_keywords: ["keyword1", "keyword2"],
+});
+
+// Update a chunk
+await client.updateChunk("<dataset_id>", "<doc_id>", "<chunk_id>", {
+  content: "Updated content",
+  important_keywords: ["new_keyword"],
+});
+
+// Delete chunks by IDs
+await client.deleteChunks("<dataset_id>", "<doc_id>", ["<chunk_id1>"]);
+```
+
+`deleteChunks()` retries the v0.25.0 transient `rm_chunk deleted chunks 0, expect N` response only after `getChunk()` confirms the target chunk still exists. This distinguishes document-store refresh delay from a genuinely missing chunk. Override with:
+
+```javascript
+await client.deleteChunks("<dataset_id>", "<doc_id>", ["<chunk_id1>"], {
+  maxRetries: 0,
+  retryDelay: 1000,
+});
+```
+
+When the CLI is run with `--json`, `delete-chunks` wraps the server result with diagnostic fields that pipelines can consume directly:
+
+```json
+{
+  "result": {},
+  "requested_chunk_ids": ["<chunk_id1>"],
+  "existing_chunk_ids": ["<chunk_id1>"],
+  "missing_chunk_ids": [],
+  "visibility_checked": true,
+  "retry_count": 1,
+  "retries": [
+    {
+      "attempt": 0,
+      "next_attempt": 2,
+      "max_retries": 3,
+      "existing_chunk_ids": ["<chunk_id1>"],
+      "missing_chunk_ids": []
+    }
+  ]
+}
+```
+
+On a final delete visibility failure, the CLI exits non-zero and emits JSON with `error`, `requested_chunk_ids`, `existing_chunk_ids`, `missing_chunk_ids`, `retry_count`, `retries`, and `delete_chunk_diagnostics`.
+
+All CLI command failures in `--json` mode use the same top-level error envelope:
+
+```json
+{
+  "error": {
+    "message": "API Error: Unauthorized",
+    "raw_message": "Unauthorized",
+    "code": 401,
+    "status": 401,
+    "command": "list-models"
+  }
+}
+```
+
+Command-specific diagnostics, such as delete chunk visibility checks, are added as extra top-level fields alongside `error`.
+
+## Retrieval
+
+```javascript
+const results = await client.retrieve({
+  question: "What is deep learning?",
+  dataset_ids: ["<dataset_id>"],
+  similarity_threshold: 0.3,
+  page_size: 5,
+  top_k: 1024,
+  vector_similarity_weight: 0.7,
+  keyword: true,
+  use_kg: false,
+  rerank_id: "<rerank_model_id>",
+});
+```
+
+## Chat Assistant
+
+```javascript
+// List chat assistants (supports pagination)
+const chats = await client.listChatAssistants({ page: 1, page_size: 10 });
+
+// Get a single chat assistant by ID
+const chat = await client.getChatAssistant("<chat_id>");
+
+// Create a chat assistant
+const chat = await client.createChatAssistant({
+  name: "Tech Q&A",
+  dataset_ids: ["<dataset_id>"],
+  llm_id: "<model_name>",
+  prompt_config: { system: "You are a helpful assistant." },
+  similarity_threshold: 0.3,
+  top_n: 5,
+});
+
+// Update a chat assistant
+await client.updateChatAssistant("<chat_id>", { name: "New Name" });
+
+// Patch a chat assistant
+await client.patchChatAssistant("<chat_id>", { prompt_config: { system: "Use the dataset" } });
+
+// Delete chat assistants by IDs
+await client.deleteChatAssistants(["<chat_id1>", "<chat_id2>"]);
+```
+
+## Session
+
+```javascript
+// List sessions for a chat assistant
+const sessions = await client.listSessions("<chat_id>", { page: 1 });
+
+// Create a session
+const session = await client.createSession("<chat_id>", { name: "Q&A Session" });
+
+// Delete sessions by IDs
+await client.deleteSessions("<chat_id>", ["<session_id1>"]);
+```
+
+## Chat Conversation
+
+```javascript
+// Chat with an assistant (streaming SSE, returns final answer + references)
+const answer = await client.chat("<chat_id>", "<session_id>", "What is RAG?");
+// Returns: { answer: "...", reference: { ... } }
+
+// Chat with a session (messages payload)
+const sessionAnswer = await client.chatSession("<chat_id>", "<session_id>", {
+  question: "Summarize the policy.",
+});
+
+// Convenience form: the last user message becomes `question`
+const sessionAnswerFromMessages = await client.chatSession("<chat_id>", "<session_id>", {
+  messages: [
+    { role: "system", content: "Follow the dataset." },
+    { role: "user", content: "Summarize the policy." },
+  ],
+});
+```
+
+`chatSession()` uses `POST /api/v1/chats/{chat_id}/completions` with `session_id` in the JSON body. This is the API-key SDK route in v0.25.0. The login-session frontend route `/api/v1/chats/{chat_id}/sessions/{session_id}/completions` is intentionally not used here.
+
+## Agent
+
+```javascript
+// List agents (supports pagination)
+const agents = await client.listAgents({ page: 1 });
+
+// Get a single agent by ID
+const agent = await client.getAgent("<agent_id>");
+
+// Create an agent (requires DSL payload with components, history, path, retrieval, globals, and graph)
+const agent = await client.createAgent({ title: "My Agent", dsl: { ... } });
+
+// Update an agent
+await client.updateAgent("<agent_id>", { title: "Updated Agent" });
+
+// Delete agents by IDs
+await client.deleteAgents(["<agent_id1>"]);
+```
+
+## Agent Session
+
+```javascript
+// List agent sessions
+const sessions = await client.listAgentSessions("<agent_id>", { page: 1 });
+
+// Create an agent session
+const session = await client.createAgentSession("<agent_id>", { name: "Session 1" });
+
+// Delete agent sessions by IDs
+await client.deleteAgentSessions("<agent_id>", ["<session_id1>"]);
+```
+
+## Agent Chat
+
+```javascript
+// Chat with an agent (streaming SSE, returns final answer + references)
+const answer = await client.agentChat("<agent_id>", "<session_id>", "Analyze the data");
+// Returns: { answer: "...", reference: { ... } }
+```
+
+## LLM Models
+
+```javascript
+// List available models
+const models = await client.listModels({ include_details: true });
+// Returns: { groups: [...], total: <n> }
+```
+
+RAGFlow v0.25.0 exposes model discovery at `/v1/llm/my_llms`. If the endpoint requires web-session authentication, provide `RAGFLOW_WEB_TOKEN`.
+
+## System
+
+```javascript
+// Get the server version
+const version = await client.getSystemVersion();
+
+// Inspect and update log levels
+const levels = await client.getLogLevels();
+await client.setLogLevel("ragflow", "DEBUG");
+```
+
+## Utility
+
+```javascript
+// Validate connection to RAGFlow server
+const ok = await client.validateConnection();
+// Returns: true | false
+```
+
+## Configuration
+
+Set the following environment variables to configure the API client:
+```bash
+export RAGFLOW_URL=https://your-ragflow-instance.com
+export RAGFLOW_API_KEY=ragflow-xxxxx
+```
+
+`RAGFLOW_URL` should be the server root, for example `http://127.0.0.1:9380`; the client adds `/api/v1` for REST endpoints and `/v1` for model discovery.
+
+Optional environment variables:
+
+```bash
+export RAGFLOW_WEB_TOKEN=<web-session-token>
+```
+
+- `RAGFLOW_WEB_TOKEN` is used only for `/v1/llm/my_llms` model discovery when the deployment requires web-session authentication.

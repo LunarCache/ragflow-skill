@@ -1,0 +1,21 @@
+# Troubleshooting
+
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| "Model not authorized" | Requested model is not configured for this tenant, or the model/factory name does not match | Verify the model name, factory suffix, and tenant model settings; use a configured model from `list-models` |
+| "Embedding model identifier must follow `<model_name>@<provider>` format" | `create-dataset --embedding-model` used only the model name | Use a full identifier from `list-models`, for example `text-embedding-v4@Tongyi-Qianwen` |
+| "Malformed JSON syntax" | The request body is not valid JSON | Fix the JSON payload or file contents before retrying |
+| "Can't stop parsing" | The document is already done or has not started yet | Only running documents can be stopped |
+| "No DSL data in request" | Agent creation omitted the DSL payload | Pass `--dsl` with a valid JSON object |
+| "Invalid DSL JSON string." | The DSL payload is not valid JSON | Pass a JSON object or `@file.json` that can be normalized by the agent parser |
+| `KeyError('path')` from `create-agent-session` | Agent DSL is missing runtime fields required by RAGFlow Canvas | Include top-level `history`, `path`, `retrieval`, `globals`, and a `graph.nodes[].data.name` entry; see `COMMANDS.md` |
+| "Dataset doesn't own parsed file" | The dataset has no parsed documents yet | Upload files and start parsing before creating a chat assistant |
+| "Chunk not found" | Chunk ID does not exist or belongs to another document | Verify the chunk ID with `list-chunks` before `update-chunk` or `delete-chunks` |
+| `rm_chunk deleted chunks 0, expect 1` | The RAGFlow server accepted the chunk ID but document-store search/delete visibility lagged behind exact ID visibility | `delete-chunks` retries only after exact ID lookup confirms the chunk exists; with `--json`, consume `existing_chunk_ids` and `missing_chunk_ids`; tune with `RAGFLOW_DELETE_CHUNK_RETRIES` and `RAGFLOW_DELETE_CHUNK_RETRY_DELAY_MS`, or run `node scripts/repro-delete-chunks.js` for a clean diagnosis |
+| "`content` is required" | Empty content was submitted to chunk update or set | Provide non-empty content; omitting `--content` on the CLI keeps the existing chunk text |
+| `chat-session` returns Not Found for `/sessions/<session_id>/completions` | That route is the login-session frontend route, not the API-key SDK route | Use the current CLI or client, which posts to `/api/v1/chats/<chat_id>/completions` with `session_id` in the body |
+| `list-models` returns Unauthorized | The `/v1/llm/my_llms` endpoint needs a web-session token in some deployments | Set `RAGFLOW_WEB_TOKEN` |
+| `update-document` gets Method Not Allowed | The server does not match the v0.25.0 source expected by this skill | Use a v0.25.0-compatible server; document updates are sent with `PATCH` |
+| Connection refused | `RAGFLOW_URL` is wrong or the server is down | Verify the URL and that the RAGFlow server is running |
+
+In `--json` mode, command failures are emitted on stdout as `{ "error": { "message", "raw_message", "code", "status", "command" } }` and exit non-zero. `delete-chunks` may also include `existing_chunk_ids`, `missing_chunk_ids`, `retry_count`, `retries`, and `delete_chunk_diagnostics`.
