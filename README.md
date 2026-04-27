@@ -16,7 +16,7 @@ A Claude/OpenClaw skill for operating [RAGFlow](https://github.com/infiniflow/ra
 
 ```bash
 # Copy the example config into the skill package
-cp ragflow-skill/.env.example ragflow-skill/.env
+cp skill-for-ragflow/.env.example skill-for-ragflow/.env
 
 # Edit with your RAGFlow credentials
 RAGFLOW_URL=http://localhost:9380
@@ -27,26 +27,26 @@ RAGFLOW_API_KEY=ragflow-xxxxx
 
 ```bash
 # Show help
-node ragflow-skill/scripts/ragflow.js --help
+node skill-for-ragflow/scripts/ragflow.js --help
 
 # List datasets
-node ragflow-skill/scripts/ragflow.js list-datasets --json
+node skill-for-ragflow/scripts/ragflow.js list-datasets --json
 
 # Create a dataset
-node ragflow-skill/scripts/ragflow.js create-dataset --name "My Knowledge Base" --chunk-method naive
+node skill-for-ragflow/scripts/ragflow.js create-dataset --name "My Knowledge Base" --chunk-method naive
 
 # Upload and parse documents
-node ragflow-skill/scripts/ragflow.js upload-documents --dataset <id> --files ./doc.pdf
-node ragflow-skill/scripts/ragflow.js start-parsing --dataset <id> --doc-ids <doc_id>
-node ragflow-skill/scripts/ragflow.js wait-parsing --dataset <id> --doc-ids <doc_id>
+node skill-for-ragflow/scripts/ragflow.js upload-documents --dataset <id> --files ./doc.pdf
+node skill-for-ragflow/scripts/ragflow.js start-parsing --dataset <id> --doc-ids <doc_id>
+node skill-for-ragflow/scripts/ragflow.js wait-parsing --dataset <id> --doc-ids <doc_id>
 
 # Retrieve from dataset
-node ragflow-skill/scripts/ragflow.js retrieve --question "What is RAG?" --datasets <id>
+node skill-for-ragflow/scripts/ragflow.js retrieve --question "What is RAG?" --datasets <id>
 ```
 
 ### 3. Use as a Claude/OpenCode Skill
 
-The installable skill package is the inner `ragflow-skill/` folder. The skill is automatically triggered when you mention RAGFlow, knowledge bases, document parsing, or RAG workflows:
+The installable skill package is the inner `skill-for-ragflow/` folder. The skill is automatically triggered when you mention RAGFlow, knowledge bases, document parsing, or RAG workflows:
 
 ```
 "Create a RAGFlow dataset called 'Tech Docs' and upload these PDFs..."
@@ -110,7 +110,7 @@ Tests use an in-memory mock HTTP server - no RAGFlow instance required.
 ## Programmatic API
 
 ```javascript
-const { createClient } = require("./ragflow-skill/lib/api.js");
+const { createClient } = require("./skill-for-ragflow/lib/api.js");
 
 const client = createClient();  // Reads RAGFLOW_URL and RAGFLOW_API_KEY from env
 
@@ -143,10 +143,10 @@ const answer = await client.chatSession(chat.id, session.id, { question: "Hello"
 
 ## Documentation
 
-- **[ragflow-skill/references/COMMANDS.md](ragflow-skill/references/COMMANDS.md)** - Full CLI reference with examples
-- **[ragflow-skill/references/API.md](ragflow-skill/references/API.md)** - Programmatic API documentation
-- **[ragflow-skill/references/TROUBLESHOOTING.md](ragflow-skill/references/TROUBLESHOOTING.md)** - Common issues and solutions
-- **[ragflow-skill/references/REFERENCE.md](ragflow-skill/references/REFERENCE.md)** - Output format style guide
+- **[skill-for-ragflow/references/COMMANDS.md](skill-for-ragflow/references/COMMANDS.md)** - Full CLI reference with examples
+- **[skill-for-ragflow/references/API.md](skill-for-ragflow/references/API.md)** - Programmatic API documentation
+- **[skill-for-ragflow/references/TROUBLESHOOTING.md](skill-for-ragflow/references/TROUBLESHOOTING.md)** - Common issues and solutions
+- **[skill-for-ragflow/references/REFERENCE.md](skill-for-ragflow/references/REFERENCE.md)** - Output format style guide
 
 ## Requirements
 
