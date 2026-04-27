@@ -4,19 +4,19 @@ A Claude/OpenCode skill for operating [RAGFlow](https://github.com/infiniflow/ra
 
 ## Features
 
-- **Full RAGFlow v0.25.x API coverage** — datasets, documents, parsing, chunks, retrieval, chat assistants, agents, model discovery
-- **Zero dependencies** — pure Node.js, no npm install required
-- **JSON-first output** — `--json` flag for machine-readable output suitable for pipelines
-- **Robust error handling** — automatic retries for transient failures, structured error envelopes
-- **Comprehensive documentation** — command reference, API examples, troubleshooting guide
+- **Full RAGFlow v0.25.x API coverage** - datasets, documents, parsing, chunks, retrieval, chat assistants, agents, model discovery
+- **Zero dependencies** - pure Node.js, no npm install required
+- **JSON-first output** - `--json` flag for machine-readable output suitable for pipelines
+- **Robust error handling** - automatic retries for transient failures, structured error envelopes
+- **Comprehensive documentation** - command reference, API examples, troubleshooting guide
 
 ## Quick Start
 
 ### 1. Configure Environment
 
 ```bash
-# Copy the example config
-cp .env.example .env
+# Copy the example config into the skill package
+cp ragflow-skill/.env.example ragflow-skill/.env
 
 # Edit with your RAGFlow credentials
 RAGFLOW_URL=http://localhost:9380
@@ -27,26 +27,26 @@ RAGFLOW_API_KEY=ragflow-xxxxx
 
 ```bash
 # Show help
-node scripts/ragflow.js --help
+node ragflow-skill/scripts/ragflow.js --help
 
 # List datasets
-node scripts/ragflow.js list-datasets --json
+node ragflow-skill/scripts/ragflow.js list-datasets --json
 
 # Create a dataset
-node scripts/ragflow.js create-dataset --name "My Knowledge Base" --chunk-method naive
+node ragflow-skill/scripts/ragflow.js create-dataset --name "My Knowledge Base" --chunk-method naive
 
 # Upload and parse documents
-node scripts/ragflow.js upload-documents --dataset <id> --files ./doc.pdf
-node scripts/ragflow.js start-parsing --dataset <id> --doc-ids <doc_id>
-node scripts/ragflow.js wait-parsing --dataset <id> --doc-ids <doc_id>
+node ragflow-skill/scripts/ragflow.js upload-documents --dataset <id> --files ./doc.pdf
+node ragflow-skill/scripts/ragflow.js start-parsing --dataset <id> --doc-ids <doc_id>
+node ragflow-skill/scripts/ragflow.js wait-parsing --dataset <id> --doc-ids <doc_id>
 
 # Retrieve from dataset
-node scripts/ragflow.js retrieve --question "What is RAG?" --datasets <id>
+node ragflow-skill/scripts/ragflow.js retrieve --question "What is RAG?" --datasets <id>
 ```
 
 ### 3. Use as a Claude/OpenCode Skill
 
-The skill is automatically triggered when you mention RAGFlow, knowledge bases, document parsing, or RAG workflows:
+The installable skill package is the inner `ragflow-skill/` folder. The skill is automatically triggered when you mention RAGFlow, knowledge bases, document parsing, or RAG workflows:
 
 ```
 "Create a RAGFlow dataset called 'Tech Docs' and upload these PDFs..."
@@ -58,23 +58,25 @@ The skill is automatically triggered when you mention RAGFlow, knowledge bases, 
 
 ```
 ragflow-skill/
-├── SKILL.md                    # Skill definition (triggers + instructions)
-├── agents/
-│   └── openai.yaml             # OpenAI-compatible agent interface
-├── lib/
-│   └── api.js                  # RagflowClient class (610 lines)
-├── scripts/
-│   ├── ragflow.js              # Main CLI (38 commands)
-│   └── repro-delete-chunks.js  # Chunk deletion diagnostic tool
-├── references/
-│   ├── API.md                  # Programmatic API documentation
-│   ├── COMMANDS.md             # CLI command reference
-│   ├── REFERENCE.md            # Output format style guide
-│   └── TROUBLESHOOTING.md      # Common issues and solutions
-└── test/
-    ├── ragflow-cli.test.js     # Unit tests (mock server)
-    ├── ragflow-e2e.test.js     # End-to-end workflow tests
-    └── live-delete-chunks.test.js  # Live chunk deletion tests
+|-- README.md
+|-- test/
+|   |-- ragflow-cli.test.js
+|   |-- ragflow-e2e.test.js
+|   `-- live-delete-chunks.test.js
+`-- ragflow-skill/
+    |-- SKILL.md                    # Skill definition (triggers + instructions)
+    |-- agents/
+    |   `-- openai.yaml             # OpenAI-compatible agent interface
+    |-- lib/
+    |   `-- api.js                  # RagflowClient class
+    |-- scripts/
+    |   |-- ragflow.js              # Main CLI
+    |   `-- repro-delete-chunks.js  # Chunk deletion diagnostic tool
+    `-- references/
+        |-- API.md                  # Programmatic API documentation
+        |-- COMMANDS.md             # CLI command reference
+        |-- REFERENCE.md            # Output format style guide
+        `-- TROUBLESHOOTING.md      # Common issues and solutions
 ```
 
 ## CLI Commands
@@ -103,12 +105,12 @@ node --test test/*.test.js
 node --test test/ragflow-cli.test.js
 ```
 
-Tests use an in-memory mock HTTP server — no RAGFlow instance required.
+Tests use an in-memory mock HTTP server - no RAGFlow instance required.
 
 ## Programmatic API
 
 ```javascript
-const { createClient } = require("./lib/api.js");
+const { createClient } = require("./ragflow-skill/lib/api.js");
 
 const client = createClient();  // Reads RAGFLOW_URL and RAGFLOW_API_KEY from env
 
@@ -141,10 +143,10 @@ const answer = await client.chatSession(chat.id, session.id, { question: "Hello"
 
 ## Documentation
 
-- **[references/COMMANDS.md](references/COMMANDS.md)** — Full CLI reference with examples
-- **[references/API.md](references/API.md)** — Programmatic API documentation
-- **[references/TROUBLESHOOTING.md](references/TROUBLESHOOTING.md)** — Common issues and solutions
-- **[references/REFERENCE.md](references/REFERENCE.md)** — Output format style guide
+- **[ragflow-skill/references/COMMANDS.md](ragflow-skill/references/COMMANDS.md)** - Full CLI reference with examples
+- **[ragflow-skill/references/API.md](ragflow-skill/references/API.md)** - Programmatic API documentation
+- **[ragflow-skill/references/TROUBLESHOOTING.md](ragflow-skill/references/TROUBLESHOOTING.md)** - Common issues and solutions
+- **[ragflow-skill/references/REFERENCE.md](ragflow-skill/references/REFERENCE.md)** - Output format style guide
 
 ## Requirements
 

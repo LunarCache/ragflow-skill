@@ -6,7 +6,7 @@ const http = require("node:http");
 const os = require("node:os");
 const path = require("node:path");
 
-const skillDir = path.resolve(__dirname, "..");
+const skillDir = path.resolve(__dirname, "..", "ragflow-skill");
 const cliPath = path.join(skillDir, "scripts", "ragflow.js");
 
 function apiResponse(res, status, payload) {
