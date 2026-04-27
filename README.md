@@ -1,6 +1,6 @@
 # RAGFlow Skill
 
-A Claude/OpenCode skill for operating [RAGFlow](https://github.com/infiniflow/ragflow) v0.25.x through a bundled Node.js CLI and API client.
+A Claude/OpenClaw skill for operating [RAGFlow](https://github.com/infiniflow/ragflow) v0.25.x through a bundled Node.js CLI and API client.
 
 ## Features
 

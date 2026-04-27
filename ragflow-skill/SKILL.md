@@ -1,6 +1,7 @@
 ---
 name: ragflow-skill
-description: Operate RAGFlow v0.25.x through the bundled Node CLI and API client for datasets, documents, uploads, parsing, chunks, retrieval, chat assistants, chat sessions, agents, agent sessions, metadata filters, model discovery, system version/log settings, and live diagnostics. Use this skill whenever the user mentions RAGFlow, needs to manage a RAG knowledge base, wants to upload and parse documents for RAG, create or query chat assistants backed by datasets, work with RAGFlow agents, check available LLM models on a RAGFlow deployment, or troubleshoot RAGFlow API issues. Also use when the user asks about vector search, document chunking, knowledge base retrieval, or RAG workflows — even if they don't explicitly name RAGFlow, if the context involves a RAGFlow deployment this skill is the right tool.
+description: Operate RAGFlow v0.25.x deployments through the bundled Node CLI and API client. Use when user needs to manage RAGFlow datasets, documents, uploads, parsing, chunks, retrieval, chat assistants, chat sessions, agents, agent sessions, metadata filters, model discovery, system settings, or API diagnostics. Also use when the user asks about knowledge bases, document chunking, vector retrieval, or RAG workflows and the current context explicitly involves a RAGFlow server or deployment.
+metadata: {"openclaw":{"requires":{"bins":["node"],"env":["RAGFLOW_URL","RAGFLOW_API_KEY"]},"primaryEnv":"RAGFLOW_API_KEY"}}
 ---
 
 # RAGFlow Skill
