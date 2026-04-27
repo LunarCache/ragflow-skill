@@ -63,7 +63,7 @@ ragflow-skill/
 |   |-- ragflow-cli.test.js
 |   |-- ragflow-e2e.test.js
 |   `-- live-delete-chunks.test.js
-`-- ragflow-skill/
+`-- skill-for-ragflow/
     |-- SKILL.md                    # Skill definition (triggers + instructions)
     |-- agents/
     |   `-- openai.yaml             # OpenAI-compatible agent interface
@@ -155,4 +155,4 @@ const answer = await client.chatSession(chat.id, session.id, { question: "Hello"
 
 ## License
 
-MIT
+MIT-0 for ClawHub distribution.
