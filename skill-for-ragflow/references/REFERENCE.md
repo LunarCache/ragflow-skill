@@ -3,6 +3,8 @@
 Style guide for consistent RAGFlow skill responses.
 Apply this reference to all user-facing output for this skill.
 
+Use this reference only for the final user-facing response. The bundled CLI may still emit raw JSON for automation, especially with `--json`; summarize that raw output into these formats instead of reproducing it verbatim unless the user explicitly asks for the exact payload.
+
 ## Format Decision Matrix
 
 | Information Type | Format | Use Case |
@@ -125,8 +127,15 @@ Apply this reference to all user-facing output for this skill.
 **Session:** `sess_abc123...`
 **Answer:** OK
 
-The iframe URL was generated with a beta token. Do not print the full token unless the user explicitly asks for it.
+The iframe URL was generated successfully. Do not print the full `token`, `beta`, iframe `src`, or HTML with `auth=` unless the user explicitly asks for the secret value.
 ```
+
+When reporting embedded-site results:
+
+- Prefer describing the target (`chat` or `agent`), mode (`fullscreen` or `widget`), locale, session ID, and whether a token was reused or created.
+- Redact secrets by default. If the user needs the value, show only the minimum required field and say that it is sensitive.
+- If the CLI returned raw JSON containing `token`, `beta`, `src`, or `html`, summarize it instead of pasting it verbatim into the user-facing response.
+- Prefer reporting operational state first: generated embed code, fetched metadata, created or reused session, or received answer.
 
 **Chunk operations:**
 ```markdown

@@ -321,9 +321,11 @@ node {baseDir}/scripts/ragflow.js create-system-token
 node {baseDir}/scripts/ragflow.js delete-system-token --token <ragflow-token>
 ```
 
-`embed-*` commands accept `--beta <token>` when you already have the embedded auth token. Without `--beta`, the CLI reuses the first system token with `beta`; if none exists, it creates one.
+`embed-*` commands accept `--beta <token>` when you already have the embedded auth token. Without `--beta`, the CLI reuses the first system token with `beta`; if none exists, it creates one. Treat both the normal system token and the `beta` value as sensitive.
 
 `RAGFLOW_URL` may be a full origin such as `http://localhost:9380` or a bare host such as `localhost:9380`; the CLI normalizes bare hosts to `http://...` when generating iframe URLs.
+
+For `embed-code`, `--origin` is the public web origin that serves the shared chat or agent page. If `--origin` is omitted, the CLI falls back to `RAGFLOW_URL`. On split deployments where the API base URL and browser-facing web origin differ, pass `--origin` explicitly.
 
 ### Generate embed code
 
@@ -346,6 +348,8 @@ Common options:
 | `--streaming` | Enables streaming for widget embeds. |
 | `--data` | JSON object appended as `data_<key>=<value>` query parameters. |
 
+When presenting results to the user, do not paste raw `token`, `beta`, `src`, or iframe HTML with `auth=` unless the user explicitly asks for the secret material. Use the raw CLI output for execution, but summarize it for the user.
+
 ### Inspect and call embedded bots
 
 ```bash
@@ -359,6 +363,8 @@ node {baseDir}/scripts/ragflow.js embed-agent-chat --agent <agent_id> --question
 `embed-chat` accepts `--session`, `--conversation-id`, `--quote`, `--reasoning`, `--internet`, and `--stream false`. `embed-agent-chat` accepts `--session`, `--inputs`, `--user-id`, `--published`, and `--stream false`.
 
 When `--session` is omitted, `embed-chat` first calls the embedded chatbot route with an empty question to create the embedded session, captures `session_id`, and then sends the real question. This mirrors RAGFlow's shared-site iframe behavior. The first no-session response is only the prologue; call the route with `session_id` when implementing your own client.
+
+`embed-info`, `embed-chat`, and `embed-agent-chat` may internally reuse or create embed auth material when `--beta` is omitted. This is expected CLI behavior for automated workflows; summarize the outcome for the user without echoing the secret values by default.
 
 ## Discovery and Configuration
 

@@ -90,6 +90,8 @@ The first step in any RAGFlow operation is resolving the target resource ID. Aft
 - **Tenant model identifiers use the `model@provider` format.** When creating datasets with `--embedding-model` or chat assistants with `--llm-id`, the server expects the full identifier, for example `text-embedding-v4@Tongyi-Qianwen` or `qwen-turbo@Tongyi-Qianwen`, not a numeric model row ID. Use `list-models` to discover model names and providers.
 - **Chat sessions use the API-key SDK route.** `chat-session` posts to `/api/v1/chats/{chat_id}/completions` with `session_id` in the body. This is the v0.25.x API-key route - the login-session frontend route is intentionally avoided.
 - **Embedded access uses beta tokens and embedded sessions.** `embed-code`, `embed-info`, `embed-chat`, and `embed-agent-chat` use the shared-site `/api/v1/chatbots/*` or `/api/v1/agentbots/*` routes. If `--beta` is not supplied, the CLI reuses the first `/api/v1/system/tokens` item with `beta` or creates one. For chatbot completions, the CLI auto-bootstraps `session_id` unless `--session` is supplied.
+- **Treat embed auth material as sensitive output.** System tokens, `beta` values, and embed URLs or iframe HTML containing `auth=` are operational secrets. Use them when needed for the task, but do not print the full values back to the user unless the user explicitly asks for them.
+- **Embed URL generation assumes a public RAGFlow origin.** `embed-code` uses `--origin` when supplied; otherwise it falls back to `RAGFLOW_URL`. When the API base URL and the public web origin differ, pass `--origin` explicitly so the generated iframe points at the actual shared-site page.
 - **Agent DSL requires specific top-level fields.** RAGFlow agents need `components`, `history`, `path`, `retrieval`, `globals`, and `graph` in the DSL. Missing fields cause `KeyError` at creation time.
 - **Chunk deletion may need retries.** The v0.25.0 server can return `rm_chunk deleted chunks 0, expect N` due to document-store refresh lag even when the chunk exists. The CLI handles this automatically - it retries after confirming the chunk is still visible via exact ID lookup. If retries still fail, run `scripts/repro-delete-chunks.js` for a clean diagnosis.
 
@@ -97,8 +99,17 @@ The first step in any RAGFlow operation is resolving the target resource ID. Aft
 
 When presenting results to the user, follow the templates in [references/REFERENCE.md](references/REFERENCE.md). Key conventions:
 
+- **Use a two-layer output model.** For execution, chaining, and parsing, prefer the CLI's raw `--json` output. For the final user-facing response, convert that raw result into a concise summary that follows the reference templates instead of pasting the CLI payload verbatim.
 - **3+ items with attributes** -> Table, abbreviating long IDs
 - **Sequential steps** -> Numbered list
 - **Parsing status** -> Use labels: `UNSTART`, `RUNNING`, `CANCEL`, `DONE`, `FAIL`
 - **Search results** -> Table with similarity scores, content as quote blocks
+- **Embed/token operations** -> Summarize what was generated or fetched; redact `token`, `beta`, and any `auth=` query value unless the user explicitly asks for the secret
 - **Errors** -> Show code and human-readable message
+
+For embed and token-related commands, apply these response rules:
+
+1. Use the CLI result internally, but do not mirror the raw JSON back to the user by default.
+2. Lead with the operational outcome: what resource was targeted, what mode was used, whether a token was reused or created, and whether a session was created or reused.
+3. Only include the minimum secret material needed to complete the user's request. If the user did not explicitly ask for the value, redact it.
+4. If the user needs copy-paste embed material, provide it only when explicitly requested and call out that it contains sensitive auth data.
