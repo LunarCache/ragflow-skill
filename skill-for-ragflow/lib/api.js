@@ -9,11 +9,17 @@ const RETRY_DELAY = 1000;
 const DELETE_CHUNK_RETRIES = 3;
 const DELETE_CHUNK_RETRY_DELAY = 1000;
 
+function normalizeBaseUrl(baseUrl) {
+  const value = String(baseUrl || "").trim().replace(/\/+$/, "");
+  if (!value) return value;
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(value) ? value : `http://${value}`;
+}
+
 class RagflowClient {
   constructor(baseUrl, apiKey, options = {}) {
     if (!baseUrl) throw new Error("RAGFLOW_URL is required");
     if (!apiKey) throw new Error("RAGFLOW_API_KEY is required");
-    this.baseUrl = baseUrl.replace(/\/+$/, "");
+    this.baseUrl = normalizeBaseUrl(baseUrl);
     this.apiKey = apiKey;
     this.apiPrefix = "/api/v1";
     this.timeout = options.timeout || DEFAULT_TIMEOUT;
@@ -149,8 +155,9 @@ class RagflowClient {
       parts.push(Buffer.from("\r\n"));
     }
     for (const file of files) {
-      const basename = path.basename(file);
-      const content = fs.readFileSync(file);
+      const filePath = typeof file === "object" ? file.path : file;
+      const basename = typeof file === "object" && file.name ? file.name : path.basename(filePath);
+      const content = fs.readFileSync(filePath);
       const header = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${basename}"\r\nContent-Type: application/octet-stream\r\n\r\n`;
       parts.push(Buffer.from(header, "utf-8"));
       parts.push(content);
@@ -160,12 +167,15 @@ class RagflowClient {
     return Buffer.concat(parts);
   }
 
-  async _streamRequest(method, endpoint, json, timeoutOverride) {
-    const url = this._buildUrl(endpoint, this.apiPrefix);
+  async _streamRequest(method, endpoint, json, options = {}) {
+    if (typeof options === "number") {
+      options = { timeout: options };
+    }
+    const url = this._buildUrl(endpoint, options.apiPrefix || this.apiPrefix);
     const body = JSON.stringify(json);
-    const timeout = timeoutOverride || this.timeout * 3;
+    const timeout = options.timeout || this.timeout * 3;
     const headers = {
-      Authorization: `Bearer ${this.apiKey}`,
+      Authorization: `Bearer ${options.authToken || this.apiKey}`,
       "Content-Type": "application/json",
       "Content-Length": Buffer.byteLength(body),
     };
@@ -180,6 +190,8 @@ class RagflowClient {
           const lines = raw.split("\n");
           let lastAnswer = "";
           let reference = null;
+          let sessionId = null;
+          let messageId = null;
           for (const line of lines) {
             if (line.startsWith("data:")) {
               const payload = line.slice(5).trim();
@@ -193,12 +205,18 @@ class RagflowClient {
                   if ((data.event === "message_end" || data.event === "done") && data.data?.reference !== undefined) {
                     reference = data.data.reference;
                   }
+                  if (data.data?.session_id !== undefined) sessionId = data.data.session_id;
+                  if (data.data?.id !== undefined) messageId = data.data.id;
                   continue;
                 }
                 if (data.code === 0) {
-                  if (data.data?.answer !== undefined) lastAnswer = data.data.answer;
-                  if (data.data?.content !== undefined) lastAnswer += data.data.content;
-                  if (data.data?.reference) reference = data.data.reference;
+                  if (data.data && typeof data.data === "object") {
+                    if (data.data.answer !== undefined) lastAnswer = data.data.answer;
+                    if (data.data.content !== undefined) lastAnswer += data.data.content;
+                    if (data.data.reference) reference = data.data.reference;
+                    if (data.data.session_id !== undefined) sessionId = data.data.session_id;
+                    if (data.data.id !== undefined) messageId = data.data.id;
+                  }
                 } else {
                   reject(new Error(data.message || data.data?.message || `API error code ${data.code}`));
                   return;
@@ -208,7 +226,10 @@ class RagflowClient {
               }
             }
           }
-          resolve({ answer: lastAnswer, reference });
+          const result = { answer: lastAnswer, reference };
+          if (sessionId !== null) result.session_id = sessionId;
+          if (messageId !== null) result.id = messageId;
+          resolve(result);
         });
       });
 
@@ -522,6 +543,62 @@ class RagflowClient {
       "POST", `/agents/${agentId}/completions`,
       { question, session_id: sessionId, ...params }
     );
+  }
+
+  // Embedded website access
+
+  async listSystemTokens() {
+    return this.request("GET", "/system/tokens");
+  }
+
+  async createSystemToken() {
+    return this.request("POST", "/system/tokens");
+  }
+
+  async deleteSystemToken(token) {
+    return this.request("DELETE", `/system/tokens/${encodeURIComponent(token)}`);
+  }
+
+  async ensureEmbedToken() {
+    const tokens = await this.listSystemTokens();
+    const tokenList = Array.isArray(tokens) ? tokens : [];
+    const reusable = tokenList.find((item) => item && item.beta);
+    if (reusable) return reusable;
+    return this.createSystemToken();
+  }
+
+  async getEmbeddedChatInfo(chatId, beta) {
+    return this.request("GET", `/chatbots/${chatId}/info`, { authToken: beta });
+  }
+
+  async getEmbeddedAgentInputs(agentId, beta) {
+    return this.request("GET", `/agentbots/${agentId}/inputs`, { authToken: beta });
+  }
+
+  async ensureEmbeddedChatSession(chatId, beta, data = {}) {
+    if (data.session_id) return data.session_id;
+    const bootstrap = { ...data, question: "", stream: true };
+    delete bootstrap.session_id;
+    delete bootstrap.conversation_id;
+    const result = await this._streamRequest("POST", `/chatbots/${chatId}/completions`, bootstrap, { authToken: beta });
+    if (!result.session_id) {
+      throw new Error("Embedded chat did not return a session_id during session bootstrap");
+    }
+    return result.session_id;
+  }
+
+  async embeddedChat(chatId, beta, data = {}) {
+    if (data.stream === false || data.stream === "false") {
+      return this.request("POST", `/chatbots/${chatId}/completions`, { authToken: beta, json: data });
+    }
+    return this._streamRequest("POST", `/chatbots/${chatId}/completions`, data, { authToken: beta });
+  }
+
+  async embeddedAgentChat(agentId, beta, data = {}) {
+    if (data.stream === false || data.stream === "false") {
+      return this.request("POST", `/agentbots/${agentId}/completions`, { authToken: beta, json: data });
+    }
+    return this._streamRequest("POST", `/agentbots/${agentId}/completions`, data, { authToken: beta });
   }
 
   // ── LLM Models ──

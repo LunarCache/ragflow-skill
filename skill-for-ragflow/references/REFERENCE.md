@@ -116,6 +116,18 @@ Apply this reference to all user-facing output for this skill.
 - doc2.md (similarity: 0.72)
 ```
 
+**Embedded website access:**
+```markdown
+**Embedded Chat**
+
+**Chat:** `chat_abc123...`
+**Mode:** fullscreen iframe
+**Session:** `sess_abc123...`
+**Answer:** OK
+
+The iframe URL was generated with a beta token. Do not print the full token unless the user explicitly asks for it.
+```
+
 **Chunk operations:**
 ```markdown
 **Chunks** (15 total)

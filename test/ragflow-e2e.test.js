@@ -6,7 +6,7 @@ const http = require("node:http");
 const os = require("node:os");
 const path = require("node:path");
 
-const skillDir = path.resolve(__dirname, "..", "ragflow-skill");
+const skillDir = path.resolve(__dirname, "..", "skill-for-ragflow");
 const cliPath = path.join(skillDir, "scripts", "ragflow.js");
 
 function apiResponse(res, status, payload) {
@@ -474,6 +474,7 @@ function runCli(baseUrl, args) {
     child.stderr.on("data", (chunk) => {
       stderr += chunk.toString("utf-8");
     });
+    child.on("error", (err) => resolve({ status: -1, stdout, stderr: err.message }));
     child.on("close", (status) => resolve({ status, stdout, stderr }));
   });
 }

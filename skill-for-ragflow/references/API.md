@@ -14,6 +14,7 @@
 - [Agent](#agent)
 - [Agent Session](#agent-session)
 - [Agent Chat](#agent-chat)
+- [Embedded Website Access](#embedded-website-access)
 - [LLM Models](#llm-models)
 - [System](#system)
 - [Utility](#utility)
@@ -55,6 +56,11 @@ await client.deleteDatasets(["<id1>", "<id2>"]);
 ```javascript
 // Upload documents
 await client.uploadDocuments("<dataset_id>", ["./report.pdf", "./notes.txt"]);
+
+// Override display names when paths are temporary/task IDs
+await client.uploadDocuments("<dataset_id>", [
+  { path: "./tmp/task-output", name: "report.pdf" },
+]);
 
 // List documents (supports page, page_size, id, name, orderby, desc, keywords, suffix, types, run, metadata, metadata_condition, return_empty_metadata)
 const docs = await client.listDocuments("<dataset_id>");
@@ -215,7 +221,7 @@ const chat = await client.getChatAssistant("<chat_id>");
 const chat = await client.createChatAssistant({
   name: "Tech Q&A",
   dataset_ids: ["<dataset_id>"],
-  llm_id: "<model_name>",
+  llm_id: "qwen-turbo@Tongyi-Qianwen",
   prompt_config: { system: "You are a helpful assistant." },
   similarity_threshold: 0.3,
   top_n: 5,
@@ -307,6 +313,43 @@ const answer = await client.agentChat("<agent_id>", "<session_id>", "Analyze the
 // Returns: { answer: "...", reference: { ... } }
 ```
 
+## Embedded Website Access
+
+```javascript
+// Reuse an existing system token with beta, or create one if needed
+const embedToken = await client.ensureEmbedToken();
+
+// Token management
+const tokens = await client.listSystemTokens();
+const newToken = await client.createSystemToken();
+await client.deleteSystemToken(newToken.token);
+
+// Chat assistant shared-site metadata and completion
+const chatInfo = await client.getEmbeddedChatInfo("<chat_id>", embedToken.beta);
+const embeddedSessionId = await client.ensureEmbeddedChatSession("<chat_id>", embedToken.beta, {
+  quote: true,
+});
+const chatAnswer = await client.embeddedChat("<chat_id>", embedToken.beta, {
+  question: "Hello",
+  session_id: embeddedSessionId,
+  quote: true,
+  stream: false,
+});
+
+// Agent shared-site inputs and completion
+const agentInputs = await client.getEmbeddedAgentInputs("<agent_id>", embedToken.beta);
+const agentAnswer = await client.embeddedAgentChat("<agent_id>", embedToken.beta, {
+  id: "<agent_id>",
+  query: "Hello",
+  inputs: {},
+  stream: false,
+});
+```
+
+Embedded calls use RAGFlow's shared-site routes under `/api/v1/chatbots/*` and `/api/v1/agentbots/*`. They authenticate with the token `beta` value, not the normal API token.
+
+For chatbot completions, RAGFlow creates the embedded session on the first no-session request and returns the assistant prologue instead of answering the user's question. Use `ensureEmbeddedChatSession()` first, or include a known `session_id`, before calling `embeddedChat()` with the real question. The CLI `embed-chat` command performs this bootstrap automatically when `--session` is omitted.
+
 ## LLM Models
 
 ```javascript
@@ -316,6 +359,8 @@ const models = await client.listModels({ include_details: true });
 ```
 
 RAGFlow v0.25.0 exposes model discovery at `/v1/llm/my_llms`. If the endpoint requires web-session authentication, provide `RAGFLOW_WEB_TOKEN`.
+
+Use model names plus provider suffixes when creating resources, for example `qwen-turbo@Tongyi-Qianwen` for `llm_id` and `text-embedding-v4@Tongyi-Qianwen` for `embedding_model`. Some deployments return numeric `id` fields from `/v1/llm/my_llms`; those are server row IDs and should not be sent as `llm_id`.
 
 ## System
 
@@ -344,7 +389,7 @@ export RAGFLOW_URL=https://your-ragflow-instance.com
 export RAGFLOW_API_KEY=ragflow-xxxxx
 ```
 
-`RAGFLOW_URL` should be the server root, for example `http://127.0.0.1:9380`; the client adds `/api/v1` for REST endpoints and `/v1` for model discovery.
+`RAGFLOW_URL` should be the server root, for example `http://127.0.0.1:9380`. Bare hosts such as `localhost:9380` are normalized to `http://localhost:9380`. The client adds `/api/v1` for REST endpoints and `/v1` for model discovery.
 
 Optional environment variables:
 

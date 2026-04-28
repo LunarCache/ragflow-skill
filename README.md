@@ -4,11 +4,18 @@ A Claude/OpenClaw skill for operating [RAGFlow](https://github.com/infiniflow/ra
 
 ## Features
 
-- **Full RAGFlow v0.25.x API coverage** - datasets, documents, parsing, chunks, retrieval, chat assistants, agents, model discovery
+- **Full RAGFlow v0.25.x API coverage** - datasets, documents, parsing, chunks, retrieval, chat assistants, agents, embedded site access, model discovery
 - **Zero dependencies** - pure Node.js, no npm install required
 - **JSON-first output** - `--json` flag for machine-readable output suitable for pipelines
 - **Robust error handling** - automatic retries for transient failures, structured error envelopes
 - **Comprehensive documentation** - command reference, API examples, troubleshooting guide
+
+## Update Notes
+
+- Added embedded site support for RAGFlow shared chatbot and agent routes, including token management, iframe/widget code generation, metadata inspection, and embedded chat calls.
+- `upload-documents --files` now accepts `display-name=path` so uploaded documents keep the original user-facing filename instead of a temporary task path.
+- Clarified model identifier usage for create operations: use `<model>@<provider>` such as `qwen-turbo@Tongyi-Qianwen`, not numeric model row IDs.
+- Normalized bare `RAGFLOW_URL` hosts like `localhost:9380` to `http://localhost:9380` in the client and embed URL generation flow.
 
 ## Quick Start
 
@@ -37,11 +44,19 @@ node skill-for-ragflow/scripts/ragflow.js create-dataset --name "My Knowledge Ba
 
 # Upload and parse documents
 node skill-for-ragflow/scripts/ragflow.js upload-documents --dataset <id> --files ./doc.pdf
+node skill-for-ragflow/scripts/ragflow.js upload-documents --dataset <id> --files report.pdf=./tmp/task-output
 node skill-for-ragflow/scripts/ragflow.js start-parsing --dataset <id> --doc-ids <doc_id>
 node skill-for-ragflow/scripts/ragflow.js wait-parsing --dataset <id> --doc-ids <doc_id>
 
 # Retrieve from dataset
 node skill-for-ragflow/scripts/ragflow.js retrieve --question "What is RAG?" --datasets <id>
+
+# Generate website embed code for a chat assistant
+node skill-for-ragflow/scripts/ragflow.js embed-code --chat <chat_id> --type fullscreen
+
+# Call the embedded chatbot route. Without --session the CLI creates the
+# embedded session first, then sends the real question with session_id.
+node skill-for-ragflow/scripts/ragflow.js embed-chat --chat <chat_id> --question "Hello"
 ```
 
 ### 3. Use as a Claude/OpenCode Skill
@@ -92,6 +107,7 @@ ragflow-skill/
 | **Session** | `create-session`, `list-sessions`, `delete-sessions`, `chat`, `chat-session` |
 | **Agent** | `create-agent`, `list-agents`, `get-agent`, `update-agent`, `delete-agents` |
 | **Agent Session** | `create-agent-session`, `list-agent-sessions`, `delete-agent-sessions`, `agent-chat` |
+| **Embed** | `list-system-tokens`, `create-system-token`, `delete-system-token`, `embed-code`, `embed-info`, `embed-chat`, `embed-agent-chat` |
 | **Models** | `list-models` |
 | **System** | `system-version`, `get-log-levels`, `set-log-level` |
 
@@ -135,10 +151,20 @@ const results = await client.retrieve({
 const chat = await client.createChatAssistant({
   name: "Q&A",
   dataset_ids: [dataset.id],
-  llm_id: "model-id"
+  llm_id: "qwen-turbo@Tongyi-Qianwen"
 });
 const session = await client.createSession(chat.id);
 const answer = await client.chatSession(chat.id, session.id, { question: "Hello" });
+
+// Embedded website access
+const embedToken = await client.ensureEmbedToken();
+const info = await client.getEmbeddedChatInfo(chat.id, embedToken.beta);
+const embeddedSessionId = await client.ensureEmbeddedChatSession(chat.id, embedToken.beta);
+const embeddedAnswer = await client.embeddedChat(chat.id, embedToken.beta, {
+  question: "Hello",
+  session_id: embeddedSessionId,
+  stream: false
+});
 ```
 
 ## Documentation

@@ -190,6 +190,24 @@ function jsonStringOption(value, optionName) {
   return JSON.stringify(jsonOption(value, optionName));
 }
 
+function uploadFileSpec(value) {
+  const source = String(value);
+  const eq = source.indexOf("=");
+  if (eq > 0) {
+    const name = source.slice(0, eq).trim();
+    const filePath = source.slice(eq + 1).trim();
+    if (!name || !filePath) {
+      throw new Error(`Invalid --files entry "${source}". Use <display-name>=<path>`);
+    }
+    return { path: filePath, name };
+  }
+  return source;
+}
+
+function uploadFilesFromOptions(files) {
+  return files.map(uploadFileSpec);
+}
+
 function questionFromMessages(messages) {
   if (!Array.isArray(messages)) {
     throw new Error("--messages must be a JSON array");
@@ -209,6 +227,130 @@ function applyChatOptions(data, opts) {
   if (opts.topK) data.top_k = Number(opts.topK);
   if (opts.vectorWeight) data.vector_similarity_weight = Number(opts.vectorWeight);
   if (opts.rerank) data.rerank_id = opts.rerank;
+}
+
+function boolOption(value, defaultValue = false) {
+  if (value === undefined) return defaultValue;
+  return value !== "false" && value !== false;
+}
+
+async function embedBeta(client, opts) {
+  if (opts.beta || opts.auth) {
+    return { beta: opts.beta || opts.auth, token: opts.token || "" };
+  }
+  const token = await client.ensureEmbedToken();
+  if (!token || !token.beta) {
+    throw new Error("No embed beta token available from /api/v1/system/tokens");
+  }
+  return token;
+}
+
+function normalizeOrigin(value) {
+  let origin = (value || process.env.RAGFLOW_URL || "").trim().replace(/\/+$/, "");
+  if (!origin) throw new Error("Missing origin. Set RAGFLOW_URL or pass --origin");
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(origin)) {
+    origin = `http://${origin}`;
+  }
+  return origin;
+}
+
+function appendEmbedQueryParams(src, opts, isAgent) {
+  if (opts.published || opts.release) src.searchParams.append("release", "true");
+  if (opts.hideAvatar || opts.visibleAvatar) src.searchParams.append("visible_avatar", "1");
+  if (opts.locale) src.searchParams.append("locale", opts.locale);
+  if (opts.userId) src.searchParams.append("userId", opts.userId);
+  if (opts.data) {
+    const data = jsonOption(opts.data, "--data");
+    for (const [key, value] of Object.entries(data)) {
+      src.searchParams.append(`data_${key}`, String(value));
+    }
+  }
+  if (!isAgent && opts.userId) {
+    warn("--user-id is only used by embedded agent pages");
+  }
+}
+
+function buildEmbedCode(opts, tokenInfo) {
+  const chatId = opts.chat;
+  const agentId = opts.agent;
+  if ((chatId && agentId) || (!chatId && !agentId)) {
+    throw new Error("Provide exactly one of --chat or --agent");
+  }
+  const isAgent = Boolean(agentId);
+  const type = opts.type || opts.embedType || "fullscreen";
+  if (!["fullscreen", "widget"].includes(type)) {
+    throw new Error("--type must be fullscreen or widget");
+  }
+  const origin = normalizeOrigin(opts.origin);
+  const route = type === "widget" ? "/chats/widget" : isAgent ? "/agent/share" : "/chats/share";
+  const src = new URL(route, origin);
+  src.searchParams.append("shared_id", isAgent ? agentId : chatId);
+  src.searchParams.append("from", isAgent ? "agent" : "chat");
+  src.searchParams.append("auth", tokenInfo.beta);
+  appendEmbedQueryParams(src, opts, isAgent);
+  if (type === "widget") {
+    src.searchParams.append("mode", "master");
+    src.searchParams.append("streaming", String(boolOption(opts.streaming, false)));
+  } else {
+    src.searchParams.append("theme", opts.theme || "light");
+  }
+
+  const srcText = src.toString();
+  const html = type === "widget"
+    ? `<iframe
+  src="${srcText}"
+  style="position:fixed;bottom:0;right:0;width:100px;height:100px;border:none;background:transparent;z-index:9999"
+  frameborder="0"
+  allow="microphone;camera"
+></iframe>
+<script>
+window.addEventListener('message',e=>{
+  if(e.origin!=='${origin}')return;
+  if(e.data.type==='CREATE_CHAT_WINDOW'){
+    if(document.getElementById('chat-win'))return;
+    const i=document.createElement('iframe');
+    i.id='chat-win';i.src=e.data.src;
+    i.style.cssText='position:fixed;bottom:104px;right:24px;width:380px;height:500px;border:none;background:transparent;z-index:9998;display:none';
+    i.frameBorder='0';i.allow='microphone;camera';
+    document.body.appendChild(i);
+  }else if(e.data.type==='TOGGLE_CHAT'){
+    const w=document.getElementById('chat-win');
+    if(w)w.style.display=e.data.isOpen?'block':'none';
+  }else if(e.data.type==='SCROLL_PASSTHROUGH')window.scrollBy(0,e.data.deltaY);
+});
+</script>`
+    : `<iframe
+  src="${srcText}"
+  style="width: 100%; height: 100%; min-height: 600px"
+  frameborder="0"
+></iframe>`;
+
+  return {
+    type,
+    from: isAgent ? "agent" : "chat",
+    id: isAgent ? agentId : chatId,
+    src: srcText,
+    html,
+    token: tokenInfo.token || "",
+    beta: tokenInfo.beta,
+  };
+}
+
+function applyEmbeddedChatPayloadOptions(data, opts) {
+  if (opts.session) data.session_id = opts.session;
+  if (opts.conversationId) data.conversation_id = opts.conversationId;
+  if (opts.quote !== undefined) data.quote = boolOption(opts.quote);
+  if (opts.stream !== undefined) data.stream = boolOption(opts.stream);
+  if (opts.reasoning !== undefined) data.reasoning = boolOption(opts.reasoning);
+  if (opts.internet !== undefined) data.internet = boolOption(opts.internet);
+}
+
+function applyEmbeddedAgentPayloadOptions(data, opts) {
+  if (opts.session) data.session_id = opts.session;
+  if (opts.inputs) data.inputs = jsonOption(opts.inputs, "--inputs");
+  if (opts.userId) data.user_id = opts.userId;
+  if (opts.published || opts.release) data.release = "true";
+  if (opts.stream !== undefined) data.stream = boolOption(opts.stream);
 }
 
 function buildParams(opts, map) {
@@ -293,8 +435,9 @@ async function uploadDocuments(opts) {
   const client = createClient();
   const dataset = requireOpt(opts, "dataset");
   const files = requireOpt(opts, "files");
+  const uploadFiles = uploadFilesFromOptions(files);
   info(`Uploading ${files.length} file(s) to dataset ${dataset}...`);
-  const result = await client.uploadDocuments(dataset, files);
+  const result = await client.uploadDocuments(dataset, uploadFiles);
   ok(`Uploaded ${files.length} file(s)`);
   json(result);
 }
@@ -778,6 +921,88 @@ async function agentChat(opts) {
   json(result);
 }
 
+// ── Embedded website access ──
+
+async function listSystemTokens() {
+  const client = createClient();
+  info("Fetching system tokens...");
+  const result = await client.listSystemTokens();
+  ok(`Found ${Array.isArray(result) ? result.length : "tokens"}`);
+  json(result);
+}
+
+async function createSystemToken() {
+  const client = createClient();
+  info("Creating system token...");
+  const result = await client.createSystemToken();
+  ok("System token created");
+  json(result);
+}
+
+async function deleteSystemToken(opts) {
+  const client = createClient();
+  const token = requireOpt(opts, "token");
+  info("Deleting system token...");
+  const result = await client.deleteSystemToken(token);
+  ok("System token deleted");
+  json(result);
+}
+
+async function embedCode(opts) {
+  const client = createClient();
+  const tokenInfo = await embedBeta(client, opts);
+  const result = buildEmbedCode(opts, tokenInfo);
+  ok(`Embed code generated for ${result.from} ${result.id}`);
+  json(result);
+}
+
+async function embedInfo(opts) {
+  const client = createClient();
+  const tokenInfo = await embedBeta(client, opts);
+  let result;
+  if (opts.chat && !opts.agent) {
+    info(`Fetching embedded chat info for ${opts.chat}...`);
+    result = await client.getEmbeddedChatInfo(opts.chat, tokenInfo.beta);
+  } else if (opts.agent && !opts.chat) {
+    info(`Fetching embedded agent inputs for ${opts.agent}...`);
+    result = await client.getEmbeddedAgentInputs(opts.agent, tokenInfo.beta);
+  } else {
+    throw new Error("Provide exactly one of --chat or --agent");
+  }
+  ok("Embedded info fetched");
+  json(result);
+}
+
+async function embedChat(opts) {
+  const client = createClient();
+  const chatId = requireOpt(opts, "chat");
+  const question = requireOpt(opts, "question");
+  const tokenInfo = await embedBeta(client, opts);
+  const data = { question };
+  applyEmbeddedChatPayloadOptions(data, opts);
+  if (!data.session_id) {
+    info("Creating embedded chat session...");
+    data.session_id = await client.ensureEmbeddedChatSession(chatId, tokenInfo.beta, data);
+  }
+  info(`Asking embedded chat: "${question}"`);
+  const result = await client.embeddedChat(chatId, tokenInfo.beta, data);
+  ok("Embedded chat response received");
+  json(result);
+}
+
+async function embedAgentChat(opts) {
+  const client = createClient();
+  const agentId = requireOpt(opts, "agent");
+  const question = requireOpt(opts, "question");
+  const tokenInfo = await embedBeta(client, opts);
+  const data = { id: agentId, query: question };
+  applyEmbeddedAgentPayloadOptions(data, opts);
+  info(`Asking embedded agent: "${question}"`);
+  const result = await client.embeddedAgentChat(agentId, tokenInfo.beta, data);
+  ok("Embedded agent response received");
+  json(result);
+}
+
 // ── LLM Models ──
 
 async function listModels(opts) {
@@ -929,6 +1154,14 @@ const COMMANDS = {
   "delete-agent-sessions": { fn: deleteAgentSessions, group: "Agent", desc: "Delete agent sessions" },
   // Agent Chat
   "agent-chat":        { fn: agentChat,        group: "Agent",     desc: "Chat with an agent" },
+  // Embedded website access
+  "list-system-tokens": { fn: listSystemTokens, group: "Embed",     desc: "List system/embed tokens" },
+  "create-system-token": { fn: createSystemToken, group: "Embed",   desc: "Create a system/embed token" },
+  "delete-system-token": { fn: deleteSystemToken, group: "Embed",   desc: "Delete a system/embed token" },
+  "embed-code":        { fn: embedCode,        group: "Embed",     desc: "Generate iframe/widget embed code" },
+  "embed-info":        { fn: embedInfo,        group: "Embed",     desc: "Get embedded chat or agent metadata" },
+  "embed-chat":        { fn: embedChat,        group: "Embed",     desc: "Chat through embedded chatbot route" },
+  "embed-agent-chat":  { fn: embedAgentChat,   group: "Embed",     desc: "Chat through embedded agentbot route" },
   // LLM Models
   "list-models":       { fn: listModels,       group: "Models",    desc: "List available LLM models" },
   // Metadata / System
@@ -958,7 +1191,7 @@ ${C.bold}Common Options:${C.reset}
     --id                ID
     --ids               IDs (multiple values)
     --dataset           Dataset ID
-    --files             File paths (multiple values)
+    --files             File paths, or display-name=path entries
     --doc-ids           Document IDs (multiple values)
     --document          Document ID
     --content           Chunk content
@@ -967,6 +1200,19 @@ ${C.bold}Common Options:${C.reset}
     --chat              Chat assistant ID
     --agent             Agent ID
     --session           Session ID
+    --token             System token
+    --beta, --auth      Embed auth beta token
+    --origin            Public RAGFlow origin for embed code
+    --type              Embed type: fullscreen or widget
+    --theme             Embed theme: light or dark
+    --locale            Embed locale
+    --published         Use published agent release
+    --streaming         Enable widget streaming
+    --user-id           Embedded agent runtime user ID
+    --hide-avatar       Hide avatar in embedded page
+    --data              Embed URL data JSON
+    --inputs            Embedded agent begin inputs JSON
+    --conversation-id   Embedded chat conversation ID
     --llm-id            LLM model ID
     --question, -q      Question (for retrieve/chat)
     --datasets, -d      Dataset IDs for retrieval

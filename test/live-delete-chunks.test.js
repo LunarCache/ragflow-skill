@@ -4,9 +4,9 @@ const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { createClient } = require("../ragflow-skill/lib/api.js");
+const { createClient } = require("../skill-for-ragflow/lib/api.js");
 
-const skillDir = path.resolve(__dirname, "..", "ragflow-skill");
+const skillDir = path.resolve(__dirname, "..", "skill-for-ragflow");
 const cliPath = path.join(skillDir, "scripts", "ragflow.js");
 const liveSkip = process.env.RAGFLOW_LIVE_TEST === "1"
   ? false

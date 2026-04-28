@@ -28,6 +28,7 @@ On command failure with `--json`, the CLI exits non-zero and prints a structured
 - [Information Retrieval](#information-retrieval)
 - [RAG Assistant Operation](#rag-assistant-operation)
 - [Agent Operation](#agent-operation)
+- [Embedded Website Access](#embedded-website-access)
 - [Discovery and Configuration](#discovery-and-configuration)
 - [System Operations](#system-operations)
 
@@ -41,6 +42,7 @@ On command failure with `--json`, the CLI exits non-zero and prints a structured
 | [Information Retrieval](#information-retrieval) | Query datasets directly without creating a chat assistant |
 | [RAG Assistant Operation](#rag-assistant-operation) | Create chat assistants, manage sessions, and run Q&A |
 | [Agent Operation](#agent-operation) | Create tool-capable agents, manage sessions, and run agent chat |
+| [Embedded Website Access](#embedded-website-access) | Generate iframe/widget code and call shared chatbots/agentbots |
 | [Discovery and Configuration](#discovery-and-configuration) | Inspect available LLM models before choosing downstream workflows |
 | [System Operations](#system-operations) | Read version and log-level settings |
 
@@ -72,6 +74,7 @@ Use this section when the user needs to get files into a dataset or inspect docu
 
 ```bash
 node {baseDir}/scripts/ragflow.js upload-documents --dataset <id> --files ./doc1.pdf ./doc2.txt
+node {baseDir}/scripts/ragflow.js upload-documents --dataset <id> --files report.pdf=./tmp/task-output
 node {baseDir}/scripts/ragflow.js list-documents --dataset <id> --metadata-condition @metadata_condition.json
 node {baseDir}/scripts/ragflow.js get-document --dataset <id> --id <doc_id>
 node {baseDir}/scripts/ragflow.js update-document --dataset <id> --id <doc_id> --name "New Name"
@@ -83,6 +86,8 @@ node {baseDir}/scripts/ragflow.js delete-documents --dataset <id> --ids <doc_id1
 `update-document` follows the v0.25.0 RAGFlow source and sends `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. It accepts `name`, `parser_config`, `chunk_method`, `enabled`, and `meta_fields`.
 
 `list-documents` supports `metadata`, `metadata_condition`, `return_empty_metadata`, `orderby`, `desc`, `suffix`, `types`, and `run`.
+
+When the physical file path is a temporary or task-generated path, use `--files <original-name>=<path>` so RAGFlow stores the user-facing filename.
 
 Use this when you need to:
 
@@ -202,13 +207,15 @@ Use this section when the user wants a dataset-backed chat assistant with reusab
 
 ```bash
 node {baseDir}/scripts/ragflow.js list-chats
-node {baseDir}/scripts/ragflow.js create-chat --name "Tech Q&A" --datasets <id1> <id2> --llm-id <model_id>
+node {baseDir}/scripts/ragflow.js create-chat --name "Tech Q&A" --datasets <id1> <id2> --llm-id qwen-turbo@Tongyi-Qianwen
 node {baseDir}/scripts/ragflow.js get-chat --id <chat_id>
 node {baseDir}/scripts/ragflow.js update-chat --id <chat_id> --name "New Name"
 node {baseDir}/scripts/ragflow.js update-chat --id <chat_id> --prompt-config @prompt_config.json
 node {baseDir}/scripts/ragflow.js patch-chat --id <chat_id> --prompt "Use the dataset"
 node {baseDir}/scripts/ragflow.js delete-chats --ids <id1> <id2>
 ```
+
+Use the tenant model identifier format `<model_name>@<provider>` for `--llm-id`. Some deployments return numeric model row IDs from `/v1/llm/my_llms`; do not pass those numeric IDs to `create-chat`.
 
 ### Session management
 
@@ -302,6 +309,57 @@ node {baseDir}/scripts/ragflow.js agent-chat --agent <agent_id> --session <sessi
 
 Use this path when the user explicitly wants an agent workflow instead of a simple retrieval assistant.
 
+## Embedded Website Access
+
+Use this section when the user wants the same website embed behavior as RAGFlow's "Embed into site" UI. These commands use `/api/v1/system/tokens` to obtain a token with `beta`, then call the shared `/api/v1/chatbots/*` or `/api/v1/agentbots/*` routes with `Authorization: Bearer <beta>`.
+
+### Token management
+
+```bash
+node {baseDir}/scripts/ragflow.js list-system-tokens
+node {baseDir}/scripts/ragflow.js create-system-token
+node {baseDir}/scripts/ragflow.js delete-system-token --token <ragflow-token>
+```
+
+`embed-*` commands accept `--beta <token>` when you already have the embedded auth token. Without `--beta`, the CLI reuses the first system token with `beta`; if none exists, it creates one.
+
+`RAGFLOW_URL` may be a full origin such as `http://localhost:9380` or a bare host such as `localhost:9380`; the CLI normalizes bare hosts to `http://...` when generating iframe URLs.
+
+### Generate embed code
+
+```bash
+node {baseDir}/scripts/ragflow.js embed-code --chat <chat_id> --type fullscreen
+node {baseDir}/scripts/ragflow.js embed-code --agent <agent_id> --type widget --published --streaming --user-id <user_id>
+```
+
+Common options:
+
+| Option | Description |
+|--------|-------------|
+| `--chat` / `--agent` | Target chat assistant or agent. Provide exactly one. |
+| `--type` | `fullscreen` or `widget`; defaults to `fullscreen`. |
+| `--origin` | Public RAGFlow origin for iframe URLs; defaults to `RAGFLOW_URL`. |
+| `--theme` | `light` or `dark` for fullscreen embeds. |
+| `--locale` | Locale query parameter. |
+| `--hide-avatar` | Adds RAGFlow's `visible_avatar=1` shared-page flag. |
+| `--published` | Uses the published agent release when embedding agents. |
+| `--streaming` | Enables streaming for widget embeds. |
+| `--data` | JSON object appended as `data_<key>=<value>` query parameters. |
+
+### Inspect and call embedded bots
+
+```bash
+node {baseDir}/scripts/ragflow.js embed-info --chat <chat_id>
+node {baseDir}/scripts/ragflow.js embed-info --agent <agent_id>
+node {baseDir}/scripts/ragflow.js embed-chat --chat <chat_id> --question "Hello"
+node {baseDir}/scripts/ragflow.js embed-chat --chat <chat_id> --question "Hello" --stream false
+node {baseDir}/scripts/ragflow.js embed-agent-chat --agent <agent_id> --question "Hello" --inputs @begin_inputs.json
+```
+
+`embed-chat` accepts `--session`, `--conversation-id`, `--quote`, `--reasoning`, `--internet`, and `--stream false`. `embed-agent-chat` accepts `--session`, `--inputs`, `--user-id`, `--published`, and `--stream false`.
+
+When `--session` is omitted, `embed-chat` first calls the embedded chatbot route with an empty question to create the embedded session, captures `session_id`, and then sends the real question. This mirrors RAGFlow's shared-site iframe behavior. The first no-session response is only the prologue; call the route with `session_id` when implementing your own client.
+
 ## Discovery and Configuration
 
 Use this section when the user needs to inspect available models before creating datasets, assistants, or agents.
@@ -316,6 +374,8 @@ node {baseDir}/scripts/ragflow.js list-models --all
 This is usually the first stop when the user is troubleshooting model availability or deciding which model to use downstream.
 
 RAGFlow v0.25.0 exposes model discovery at `/v1/llm/my_llms`. If the endpoint requires web-session authentication, provide `RAGFLOW_WEB_TOKEN`.
+
+For create operations, use model names plus provider suffixes such as `qwen-turbo@Tongyi-Qianwen` or `text-embedding-v4@Tongyi-Qianwen`. If `list-models --include-details` shows numeric `id` fields, treat them as server row IDs, not values for `--llm-id` or `--embedding-model`.
 
 ## System Operations
 

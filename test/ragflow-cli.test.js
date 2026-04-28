@@ -6,7 +6,7 @@ const http = require("node:http");
 const os = require("node:os");
 const path = require("node:path");
 
-const skillDir = path.resolve(__dirname, "..", "ragflow-skill");
+const skillDir = path.resolve(__dirname, "..", "skill-for-ragflow");
 const cliPath = path.join(skillDir, "scripts", "ragflow.js");
 
 function apiResponse(res, status, payload) {
@@ -41,6 +41,7 @@ function agentEventResponse(res) {
 
 function createMockServer(options = {}) {
   const requests = [];
+  const tokens = options.tokens || [{ token: "ragflow-token", beta: "beta-token" }];
   const server = http.createServer((req, res) => {
     const chunks = [];
     req.on("data", (chunk) => chunks.push(chunk));
@@ -55,11 +56,48 @@ function createMockServer(options = {}) {
 
       const { pathname } = new URL(req.url, "http://127.0.0.1");
       if (pathname.endsWith("/completions")) {
+        if (options.embeddedChatBootstrap && pathname.includes("/chatbots/")) {
+          const body = requestJson(record) || {};
+          if (!body.session_id) {
+            sseResponse(res, { answer: "Welcome", reference: {}, session_id: "embed-sess", id: null });
+            return;
+          }
+          jsonResponse(res, { answer: "embedded ok", reference: { chunks: [] }, session_id: body.session_id });
+          return;
+        }
         if (options.agentEventStream && pathname.includes("/agents/")) {
           agentEventResponse(res);
           return;
         }
+        if (requestJson(record)?.stream === false) {
+          jsonResponse(res, { answer: "ok", reference: { chunks: [] } });
+          return;
+        }
         sseResponse(res, { answer: "ok", reference: { chunks: [] } });
+        return;
+      }
+
+      if (pathname === "/api/v1/system/tokens" && req.method === "GET") {
+        jsonResponse(res, tokens);
+        return;
+      }
+      if (pathname === "/api/v1/system/tokens" && req.method === "POST") {
+        const token = { token: "ragflow-created", beta: "beta-created" };
+        tokens.push(token);
+        jsonResponse(res, token);
+        return;
+      }
+      if (pathname === "/api/v1/system/tokens/ragflow-token" && req.method === "DELETE") {
+        jsonResponse(res, true);
+        return;
+      }
+
+      if (pathname === "/api/v1/chatbots/chat1/info" && req.method === "GET") {
+        jsonResponse(res, { title: "Bot", avatar: "", prologue: "Hello", has_tavily_key: false });
+        return;
+      }
+      if (pathname === "/api/v1/agentbots/agent1/inputs" && req.method === "GET") {
+        jsonResponse(res, { title: "Agent", avatar: "", inputs: [], prologue: "Hi", mode: "conversational" });
         return;
       }
 
@@ -191,6 +229,7 @@ function runCli(baseUrl, args) {
     child.stderr.on("data", (chunk) => {
       stderr += chunk.toString("utf-8");
     });
+    child.on("error", (err) => resolve({ status: -1, stdout, stderr: err.message }));
     child.on("close", (status) => resolve({ status, stdout, stderr }));
   });
 }
@@ -216,6 +255,9 @@ function assertRequest(record, expected) {
   const url = new URL(record.url, "http://127.0.0.1");
   assert.equal(record.method, expected.method);
   assert.equal(url.pathname, expected.path);
+  if (expected.auth) {
+    assert.equal(record.headers.authorization, `Bearer ${expected.auth}`);
+  }
   for (const [key, value] of Object.entries(expected.query || {})) {
     if (Array.isArray(value)) {
       assert.deepEqual(url.searchParams.getAll(key), value.map(String));
@@ -235,6 +277,7 @@ test("CLI help exits successfully", async () => {
     child.stdout.on("data", (chunk) => {
       stdout += chunk.toString("utf-8");
     });
+    child.on("error", (err) => resolve({ status: -1, stdout, stderr: err.message }));
     child.on("close", (status) => resolve({ status, stdout }));
   });
 
@@ -283,6 +326,7 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
     { args: ["update-dataset", "--id", "ds1", "--name", "Docs2", "--json"], expect: { method: "PUT", path: "/api/v1/datasets/ds1", body: { name: "Docs2" } } },
     { args: ["delete-datasets", "--ids", "ds1", "ds2", "--json"], expect: { method: "DELETE", path: "/api/v1/datasets", body: { ids: ["ds1", "ds2"] } } },
     { args: ["upload-documents", "--dataset", "ds1", "--files", fileA, fileB, "--json"], expect: { method: "POST", path: "/api/v1/datasets/ds1/documents" }, multipart: true },
+    { args: ["upload-documents", "--dataset", "ds1", "--files", `contract.pdf=${fileA}`, `spec.md=${fileB}`, "--json"], expect: { method: "POST", path: "/api/v1/datasets/ds1/documents" }, multipartNames: ["contract.pdf", "spec.md"] },
     {
       args: [
         "list-documents",
@@ -360,6 +404,13 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
     { args: ["system-version", "--json"], expect: { method: "GET", path: "/api/v1/system/version" } },
     { args: ["get-log-levels", "--json"], expect: { method: "GET", path: "/api/v1/system/config/log" } },
     { args: ["set-log-level", "--pkg-name", "ragflow", "--level", "DEBUG", "--json"], expect: { method: "PUT", path: "/api/v1/system/config/log", body: { pkg_name: "ragflow", level: "DEBUG" } } },
+    { args: ["list-system-tokens", "--json"], expect: { method: "GET", path: "/api/v1/system/tokens" } },
+    { args: ["create-system-token", "--json"], expect: { method: "POST", path: "/api/v1/system/tokens" } },
+    { args: ["delete-system-token", "--token", "ragflow-token", "--json"], expect: { method: "DELETE", path: "/api/v1/system/tokens/ragflow-token" } },
+    { args: ["embed-info", "--chat", "chat1", "--beta", "beta-token", "--json"], expect: { method: "GET", path: "/api/v1/chatbots/chat1/info", auth: "beta-token" } },
+    { args: ["embed-info", "--agent", "agent1", "--beta", "beta-token", "--json"], expect: { method: "GET", path: "/api/v1/agentbots/agent1/inputs", auth: "beta-token" } },
+    { args: ["embed-chat", "--chat", "chat1", "--beta", "beta-token", "--question", "Hello", "--conversation-id", "msg1", "--session", "sess1", "--quote", "--stream", "false", "--json"], expect: { method: "POST", path: "/api/v1/chatbots/chat1/completions", auth: "beta-token", body: { question: "Hello", conversation_id: "msg1", session_id: "sess1", quote: true, stream: false } } },
+    { args: ["embed-agent-chat", "--agent", "agent1", "--beta", "beta-token", "--question", "Hello", "--session", "asess1", "--inputs", "{\"city\":{\"value\":\"Shanghai\"}}", "--user-id", "user1", "--published", "--stream", "false", "--json"], expect: { method: "POST", path: "/api/v1/agentbots/agent1/completions", auth: "beta-token", body: { id: "agent1", query: "Hello", session_id: "asess1", inputs: { city: { value: "Shanghai" } }, user_id: "user1", release: "true", stream: false } } },
     { args: ["list-models", "--include-details", "--group-by", "factory", "--all", "--json"], expect: { method: "GET", path: "/v1/llm/my_llms", query: { include_details: true } } },
   ];
 
@@ -381,6 +432,15 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
         assert.match(body, /filename="b\.txt"/);
         assert.match(body, /alpha\r\n------FormBoundary/);
       }
+      if (item.multipartNames) {
+        const body = newRequests.at(-1).body.toString("binary");
+        assert.match(newRequests.at(-1).headers["content-type"], /multipart\/form-data; boundary=/);
+        for (const name of item.multipartNames) {
+          assert.match(body, new RegExp(`filename="${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`));
+        }
+        assert.doesNotMatch(body, /filename="a\.txt"/);
+        assert.doesNotMatch(body, /filename="b\.txt"/);
+      }
     }
   } finally {
     await server.close();
@@ -395,6 +455,89 @@ test("empty list commands still emit JSON when --json is set", async () => {
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stdout.trim(), "[]");
     assert.equal(JSON.parse(result.stdout).length, 0);
+  } finally {
+    await server.close();
+  }
+});
+
+test("embed-code reuses an existing beta token and generates fullscreen iframe", async () => {
+  const server = await createMockServer();
+  try {
+    const result = await runCli(server.url, ["embed-code", "--chat", "chat1", "--type", "fullscreen", "--theme", "dark", "--locale", "en", "--hide-avatar", "--json"]);
+    assert.equal(result.status, 0, result.stderr);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.type, "fullscreen");
+    assert.equal(payload.from, "chat");
+    assert.equal(payload.id, "chat1");
+    assert.equal(payload.beta, "beta-token");
+    assert.match(payload.src, /\/chats\/share\?/);
+    assert.match(payload.src, /shared_id=chat1/);
+    assert.match(payload.src, /from=chat/);
+    assert.match(payload.src, /auth=beta-token/);
+    assert.match(payload.src, /theme=dark/);
+    assert.match(payload.src, /locale=en/);
+    assert.match(payload.src, /visible_avatar=1/);
+    assert.match(payload.html, /<iframe/);
+    assert.equal(server.requests.length, 1);
+    assertRequest(server.requests[0], { method: "GET", path: "/api/v1/system/tokens" });
+  } finally {
+    await server.close();
+  }
+});
+
+test("embed-code creates a system token when no reusable beta token exists", async () => {
+  const server = await createMockServer({ tokens: [] });
+  try {
+    const result = await runCli(server.url, ["embed-code", "--agent", "agent1", "--type", "widget", "--streaming", "--published", "--user-id", "user1", "--json"]);
+    assert.equal(result.status, 0, result.stderr);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.type, "widget");
+    assert.equal(payload.from, "agent");
+    assert.equal(payload.beta, "beta-created");
+    assert.match(payload.src, /\/chats\/widget\?/);
+    assert.match(payload.src, /shared_id=agent1/);
+    assert.match(payload.src, /from=agent/);
+    assert.match(payload.src, /release=true/);
+    assert.match(payload.src, /mode=master/);
+    assert.match(payload.src, /streaming=true/);
+    assert.match(payload.src, /userId=user1/);
+    assert.match(payload.html, /CREATE_CHAT_WINDOW/);
+    assert.equal(server.requests.length, 2);
+    assertRequest(server.requests[0], { method: "GET", path: "/api/v1/system/tokens" });
+    assertRequest(server.requests[1], { method: "POST", path: "/api/v1/system/tokens" });
+  } finally {
+    await server.close();
+  }
+});
+
+test("embed-chat bootstraps an embedded session when --session is omitted", async () => {
+  const server = await createMockServer({ embeddedChatBootstrap: true });
+  try {
+    const result = await runCli(server.url, ["embed-chat", "--chat", "chat1", "--beta", "beta-token", "--question", "Hello", "--stream", "false", "--json"]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(JSON.parse(result.stdout), {
+      answer: "embedded ok",
+      reference: { chunks: [] },
+      session_id: "embed-sess",
+    });
+
+    const chatRequests = server.requests.filter((record) => {
+      const url = new URL(record.url, "http://127.0.0.1");
+      return url.pathname === "/api/v1/chatbots/chat1/completions";
+    });
+    assert.equal(chatRequests.length, 2);
+    assertRequest(chatRequests[0], {
+      method: "POST",
+      path: "/api/v1/chatbots/chat1/completions",
+      auth: "beta-token",
+      body: { question: "", stream: true },
+    });
+    assertRequest(chatRequests[1], {
+      method: "POST",
+      path: "/api/v1/chatbots/chat1/completions",
+      auth: "beta-token",
+      body: { question: "Hello", session_id: "embed-sess", stream: false },
+    });
   } finally {
     await server.close();
   }
