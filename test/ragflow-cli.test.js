@@ -8,6 +8,11 @@ const path = require("node:path");
 
 const skillDir = path.resolve(__dirname, "..", "skill-for-ragflow");
 const cliPath = path.join(skillDir, "scripts", "ragflow.js");
+const examplesDir = path.join(skillDir, "references", "examples", "agents");
+
+function readAgentExample(name) {
+  return JSON.parse(fs.readFileSync(path.join(examplesDir, name), "utf-8"));
+}
 
 function apiResponse(res, status, payload) {
   res.writeHead(status, { "content-type": "application/json" });
@@ -299,6 +304,8 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
   const metadataCondition = path.join(tempDir, "metadata_condition.json");
   const sessionMessages = path.join(tempDir, "messages.json");
   const dsl = path.join(tempDir, "agent.json");
+  const canonicalDsl = readAgentExample("01-conversational-message.json");
+  const inlineDsl = JSON.stringify(canonicalDsl);
 
   fs.writeFileSync(fileA, "alpha");
   fs.writeFileSync(fileB, "beta");
@@ -311,7 +318,7 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
     { role: "system", content: "Follow the dataset." },
     { role: "user", content: "Summarize the policy." },
   ]));
-  fs.writeFileSync(dsl, JSON.stringify({ components: { begin: { obj: { component_name: "Begin", params: {} }, downstream: [] } }, graph: { edges: [], nodes: [] } }));
+  fs.writeFileSync(dsl, JSON.stringify(canonicalDsl));
 
   const cases = [
     {
@@ -392,14 +399,16 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
     { args: ["chat", "--chat", "chat1", "--session", "sess1", "-q", "Hello", "--json"], expect: { method: "POST", path: "/api/v1/chats/chat1/completions", body: { question: "Hello", session_id: "sess1" } } },
     { args: ["chat-session", "--chat", "chat1", "--session", "sess1", "--messages", `@${sessionMessages}`, "--llm-id", "model-a", "--temperature", "0.2", "--top-p", "0.9", "--frequency-penalty", "0.1", "--presence-penalty", "0.0", "--max-tokens", "128", "--json"], expect: { method: "POST", path: "/api/v1/chats/chat1/completions", body: { question: "Summarize the policy.", session_id: "sess1", llm_id: "model-a", temperature: 0.2, top_p: 0.9, frequency_penalty: 0.1, presence_penalty: 0, max_tokens: 128 } } },
     { args: ["list-agents", "--page", "1", "--page-size", "2", "--name", "Agent", "--json"], expect: { method: "GET", path: "/api/v1/agents", query: { page: 1, page_size: 2, title: "Agent" } } },
-    { args: ["create-agent", "--title", "Agent", "--dsl", `@${dsl}`, "--description", "Desc", "--json"], expect: { method: "POST", path: "/api/v1/agents", body: { title: "Agent", description: "Desc", dsl: { components: { begin: { obj: { component_name: "Begin", params: {} }, downstream: [] } } } } } },
+    { args: ["create-agent", "--title", "Agent", "--dsl", `@${dsl}`, "--description", "Desc", "--json"], expect: { method: "POST", path: "/api/v1/agents", body: { title: "Agent", description: "Desc", dsl: canonicalDsl } } },
+    { args: ["create-agent", "--title", "Agent Inline", "--dsl", inlineDsl, "--json"], expect: { method: "POST", path: "/api/v1/agents", body: { title: "Agent Inline", dsl: canonicalDsl } } },
     { args: ["get-agent", "--id", "agent1", "--json"], expect: { method: "GET", path: "/api/v1/agents", query: { id: "agent1" } } },
-    { args: ["update-agent", "--id", "agent1", "--title", "Agent2", "--dsl", `@${dsl}`, "--json"], expect: { method: "PUT", path: "/api/v1/agents/agent1", body: { title: "Agent2", dsl: { components: { begin: { obj: { component_name: "Begin", params: {} }, downstream: [] } } } } } },
+    { args: ["update-agent", "--id", "agent1", "--title", "Agent2", "--dsl", `@${dsl}`, "--json"], expect: { method: "PUT", path: "/api/v1/agents/agent1", body: { title: "Agent2", dsl: canonicalDsl } } },
     { args: ["delete-agents", "--ids", "agent1", "--json"], expect: { method: "DELETE", path: "/api/v1/agents/agent1" } },
     { args: ["list-agent-sessions", "--agent", "agent1", "--page", "1", "--json"], expect: { method: "GET", path: "/api/v1/agents/agent1/sessions", query: { page: 1 } } },
     { args: ["create-agent-session", "--agent", "agent1", "--name", "Agent Session", "--json"], expect: { method: "POST", path: "/api/v1/agents/agent1/sessions", body: { name: "Agent Session" } } },
     { args: ["delete-agent-sessions", "--agent", "agent1", "--ids", "asess1", "--json"], expect: { method: "DELETE", path: "/api/v1/agents/agent1/sessions", body: { ids: ["asess1"] } } },
     { args: ["agent-chat", "--agent", "agent1", "--session", "asess1", "-q", "Hello", "--json"], expect: { method: "POST", path: "/api/v1/agents/agent1/completions", body: { question: "Hello", session_id: "asess1" } } },
+    { args: ["agent-chat", "--agent", "agent1", "--session", "asess1", "-q", "Hello", "--stream", "false", "--json"], expect: { method: "POST", path: "/api/v1/agents/agent1/completions", body: { question: "Hello", session_id: "asess1", stream: false } } },
     { args: ["metadata-summary", "--dataset", "ds1", "--doc-ids", "doc1", "doc2", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/metadata/summary", query: { doc_ids: "doc1,doc2" } } },
     { args: ["system-version", "--json"], expect: { method: "GET", path: "/api/v1/system/version" } },
     { args: ["get-log-levels", "--json"], expect: { method: "GET", path: "/api/v1/system/config/log" } },

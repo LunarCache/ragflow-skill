@@ -915,8 +915,10 @@ async function agentChat(opts) {
   if (!question) {
     throw new Error("Missing required option: --question");
   }
+  const params = {};
+  if (opts.stream !== undefined) params.stream = opts.stream !== "false" && opts.stream !== false;
   info(`Asking agent: "${question}"`);
-  const result = await client.agentChat(agentId, session, question);
+  const result = await client.agentChat(agentId, session, question, params);
   ok("Agent response received");
   json(result);
 }

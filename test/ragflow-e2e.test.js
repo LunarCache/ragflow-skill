@@ -8,6 +8,11 @@ const path = require("node:path");
 
 const skillDir = path.resolve(__dirname, "..", "skill-for-ragflow");
 const cliPath = path.join(skillDir, "scripts", "ragflow.js");
+const examplesDir = path.join(skillDir, "references", "examples", "agents");
+
+function readAgentExample(name) {
+  return JSON.parse(fs.readFileSync(path.join(examplesDir, name), "utf-8"));
+}
 
 function apiResponse(res, status, payload) {
   res.writeHead(status, { "content-type": "application/json" });
@@ -504,6 +509,7 @@ test("stateful e2e workflow covers upload, parsing, retrieval, chat, and agent",
   const metaFields = path.join(tempDir, "meta.json");
   const messages = path.join(tempDir, "messages.json");
   const dsl = path.join(tempDir, "agent.json");
+  const canonicalDsl = readAgentExample("01-conversational-message.json");
 
   fs.writeFileSync(fileA, "alpha");
   fs.writeFileSync(fileB, "beta");
@@ -513,7 +519,7 @@ test("stateful e2e workflow covers upload, parsing, retrieval, chat, and agent",
     { role: "system", content: "Follow the dataset." },
     { role: "user", content: "Summarize the policy." },
   ]));
-  fs.writeFileSync(dsl, JSON.stringify({ components: { begin: { obj: { component_name: "Begin", params: {} }, downstream: [] } }, graph: { edges: [], nodes: [] } }));
+  fs.writeFileSync(dsl, JSON.stringify(canonicalDsl));
 
   try {
     let result = await runCli(server.url, ["create-dataset", "--name", "Docs", "--chunk-method", "naive", "--embedding-model", "emb", "--permission", "team", "--json"]);
@@ -612,10 +618,7 @@ test("stateful e2e workflow covers upload, parsing, retrieval, chat, and agent",
       path: "/api/v1/agents",
       body: {
         title: "Agent",
-        dsl: {
-          components: { begin: { obj: { component_name: "Begin", params: {} }, downstream: [] } },
-          graph: { edges: [], nodes: [] },
-        },
+        dsl: canonicalDsl,
       },
     });
 

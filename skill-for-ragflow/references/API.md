@@ -282,7 +282,7 @@ const agents = await client.listAgents({ page: 1 });
 // Get a single agent by ID
 const agent = await client.getAgent("<agent_id>");
 
-// Create an agent (requires DSL payload with components, history, path, retrieval, globals, and graph)
+// Create an agent (use the current canvas DSL schema from AGENT_GUIDE.md)
 const agent = await client.createAgent({ title: "My Agent", dsl: { ... } });
 
 // Update an agent
@@ -291,6 +291,8 @@ await client.updateAgent("<agent_id>", { title: "Updated Agent" });
 // Delete agents by IDs
 await client.deleteAgents(["<agent_id1>"]);
 ```
+
+`createAgent()` and `updateAgent()` forward the DSL directly to RAGFlow, where the server normalizes it through the canvas DSL normalization layer. In practice, hand-authored DSL should include `components`, `history`, `path`, `retrieval`, `variables`, `globals`, and `graph`, and every component-backed graph node should include `data.name`. See [AGENT_GUIDE.md](AGENT_GUIDE.md) for the current schema and minimal examples.
 
 ## Agent Session
 
@@ -311,7 +313,15 @@ await client.deleteAgentSessions("<agent_id>", ["<session_id1>"]);
 // Chat with an agent (streaming SSE, returns final answer + references)
 const answer = await client.agentChat("<agent_id>", "<session_id>", "Analyze the data");
 // Returns: { answer: "...", reference: { ... } }
+
+// Ask for a final JSON response instead of SSE
+const finalAnswer = await client.agentChat("<agent_id>", "<session_id>", "Analyze the data", {
+  stream: false,
+});
+// Returns: { answer: "...", reference: { ... }, session_id: "...", id: "..." }
 ```
+
+When `stream: false` is used, `agentChat()` still normalizes current `workflow_finished` or `done` JSON envelopes into the same final answer shape used by the streaming path.
 
 ## Embedded Website Access
 

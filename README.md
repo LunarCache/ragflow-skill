@@ -1,6 +1,6 @@
 # RAGFlow Skill
 
-A Claude/OpenClaw skill for operating [RAGFlow](https://github.com/infiniflow/ragflow) v0.25.x through a bundled Node.js CLI and API client.
+A Codex/OpenCode skill for operating [RAGFlow](https://github.com/infiniflow/ragflow) v0.25.x through a bundled Node.js CLI and API client.
 
 ## Features
 
@@ -59,7 +59,7 @@ node skill-for-ragflow/scripts/ragflow.js embed-code --chat <chat_id> --type ful
 node skill-for-ragflow/scripts/ragflow.js embed-chat --chat <chat_id> --question "Hello"
 ```
 
-### 3. Use as a Claude/OpenCode Skill
+### 3. Use as a Codex/OpenCode Skill
 
 The installable skill package is the inner `skill-for-ragflow/` folder. The skill is automatically triggered when you mention RAGFlow, knowledge bases, document parsing, or RAG workflows:
 
@@ -75,8 +75,11 @@ The installable skill package is the inner `skill-for-ragflow/` folder. The skil
 ragflow-skill/
 |-- README.md
 |-- test/
+|   |-- ragflow-agent-guide.test.js
+|   |-- ragflow-api.test.js
 |   |-- ragflow-cli.test.js
 |   |-- ragflow-e2e.test.js
+|   |-- live-agent-create.test.js
 |   `-- live-delete-chunks.test.js
 `-- skill-for-ragflow/
     |-- SKILL.md                    # Skill definition (triggers + instructions)
@@ -88,10 +91,13 @@ ragflow-skill/
     |   |-- ragflow.js              # Main CLI
     |   `-- repro-delete-chunks.js  # Chunk deletion diagnostic tool
     `-- references/
+        |-- AGENT_GUIDE.md          # Practical custom agent guide with minimal DSL examples
         |-- API.md                  # Programmatic API documentation
         |-- COMMANDS.md             # CLI command reference
         |-- REFERENCE.md            # Output format style guide
-        `-- TROUBLESHOOTING.md      # Common issues and solutions
+        |-- TROUBLESHOOTING.md      # Common issues and solutions
+        `-- examples/
+            `-- agents/             # Minimal custom agent DSL examples
 ```
 
 ## CLI Commands
@@ -114,14 +120,19 @@ ragflow-skill/
 ## Testing
 
 ```bash
-# Run all tests (uses Node.js built-in test runner)
+# Fast local test suite
+node --test test/ragflow-agent-guide.test.js test/ragflow-api.test.js test/ragflow-cli.test.js test/ragflow-e2e.test.js
+
+# Run all tests
 node --test test/*.test.js
 
-# Run specific test file
-node --test test/ragflow-cli.test.js
+# Run live integration tests against a real RAGFlow deployment
+RAGFLOW_LIVE_TEST=1 node --test test/live-agent-create.test.js test/live-delete-chunks.test.js
 ```
 
-Tests use an in-memory mock HTTP server - no RAGFlow instance required.
+Most tests use an in-memory mock HTTP server, so no RAGFlow instance is required.
+`live-agent-create.test.js` and `live-delete-chunks.test.js` are opt-in integration tests against a real RAGFlow deployment.
+The live tests create real datasets, documents, and agents. Set `RAGFLOW_LIVE_KEEP_ARTIFACTS=1` if you want to preserve the created resources for manual inspection.
 
 ## Programmatic API
 
@@ -136,6 +147,7 @@ const datasets = await client.listDatasets({ page: 1, page_size: 10 });
 
 // Document operations
 await client.uploadDocuments(dataset.id, ["./report.pdf"]);
+const docId = "<doc_id>";
 await client.startParsing(dataset.id, [docId]);
 const chunks = await client.listChunks(dataset.id, docId);
 
@@ -165,11 +177,19 @@ const embeddedAnswer = await client.embeddedChat(chat.id, embedToken.beta, {
   session_id: embeddedSessionId,
   stream: false
 });
+
+// Agent session, normalized even when the server returns workflow_finished JSON
+const agentId = "<agent_id>";
+const agentSession = await client.createAgentSession(agentId);
+const agentAnswer = await client.agentChat(agentId, agentSession.id, "Summarize this", {
+  stream: false
+});
 ```
 
 ## Documentation
 
 - **[skill-for-ragflow/references/COMMANDS.md](skill-for-ragflow/references/COMMANDS.md)** - Full CLI reference with examples
+- **[skill-for-ragflow/references/AGENT_GUIDE.md](skill-for-ragflow/references/AGENT_GUIDE.md)** - Practical custom agent guide with minimal examples
 - **[skill-for-ragflow/references/API.md](skill-for-ragflow/references/API.md)** - Programmatic API documentation
 - **[skill-for-ragflow/references/TROUBLESHOOTING.md](skill-for-ragflow/references/TROUBLESHOOTING.md)** - Common issues and solutions
 - **[skill-for-ragflow/references/REFERENCE.md](skill-for-ragflow/references/REFERENCE.md)** - Output format style guide

@@ -202,11 +202,32 @@ class RagflowClient {
                   if (data.event === "message" && data.data?.content !== undefined) {
                     lastAnswer += data.data.content;
                   }
+                  if (
+                    (data.event === "workflow_finished" || data.event === "done") &&
+                    data.data?.content !== undefined
+                  ) {
+                    lastAnswer = data.data.content;
+                  }
+                  if (
+                    (data.event === "workflow_finished" || data.event === "done") &&
+                    data.data?.outputs?.content !== undefined &&
+                    !lastAnswer
+                  ) {
+                    lastAnswer = data.data.outputs.content;
+                  }
                   if ((data.event === "message_end" || data.event === "done") && data.data?.reference !== undefined) {
                     reference = data.data.reference;
                   }
+                  if (
+                    (data.event === "workflow_finished" || data.event === "done") &&
+                    data.data?.reference !== undefined
+                  ) {
+                    reference = data.data.reference;
+                  }
                   if (data.data?.session_id !== undefined) sessionId = data.data.session_id;
+                  if (data.session_id !== undefined) sessionId = data.session_id;
                   if (data.data?.id !== undefined) messageId = data.data.id;
+                  if (data.message_id !== undefined) messageId = data.message_id;
                   continue;
                 }
                 if (data.code === 0) {
@@ -539,9 +560,29 @@ class RagflowClient {
   // ── Agent Chat ──
 
   async agentChat(agentId, sessionId, question, params = {}) {
+    const payload = { question, session_id: sessionId, ...params };
+    if (payload.stream === false || payload.stream === "false") {
+      const result = await this.request("POST", `/agents/${agentId}/completions`, { json: payload });
+      if (result && typeof result === "object") {
+        if (result.answer !== undefined || result.reference !== undefined) return result;
+        if (result.event && result.data && typeof result.data === "object") {
+          const answer = result.data.content !== undefined
+            ? result.data.content
+            : result.data.outputs?.content !== undefined
+              ? result.data.outputs.content
+              : "";
+          const reference = result.data.reference !== undefined ? result.data.reference : null;
+          const normalized = { answer, reference };
+          if (result.session_id !== undefined) normalized.session_id = result.session_id;
+          if (result.message_id !== undefined) normalized.id = result.message_id;
+          return normalized;
+        }
+      }
+      return result;
+    }
     return this._streamRequest(
       "POST", `/agents/${agentId}/completions`,
-      { question, session_id: sessionId, ...params }
+      payload
     );
   }
 

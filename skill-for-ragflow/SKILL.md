@@ -64,6 +64,8 @@ Use this skill to operate RAGFlow through `scripts/ragflow.js`. The CLI wraps th
 2. `create-agent-session --agent <agent_id>`
 3. `agent-chat --agent <agent_id> --session <session_id> --question "Hello"`
 
+`agent-chat` is streaming by default. Use `--stream false` when you need the final JSON result in one response.
+
 ### Embedded website access
 
 1. `embed-code --chat <chat_id> --type fullscreen` or `embed-code --agent <agent_id> --type widget`
@@ -76,10 +78,11 @@ Use this skill to operate RAGFlow through `scripts/ragflow.js`. The CLI wraps th
 
 The first step in any RAGFlow operation is resolving the target resource ID. After that, choose the right path:
 
-1. **Need CLI syntax or option details?** -> Read [references/COMMANDS.md](references/COMMANDS.md) - it's organized by workflow scenario with full option tables.
-2. **Editing client code or checking request/response shapes?** -> Read [references/API.md](references/API.md) - it has code examples for every `RagflowClient` method.
-3. **A command failed?** -> Read [references/TROUBLESHOOTING.md](references/TROUBLESHOOTING.md) - common errors with causes and fixes.
-4. **Formatting output for the user?** -> Read [references/REFERENCE.md](references/REFERENCE.md) - consistent response templates and status labels.
+1. **Authoring or debugging a custom agent DSL?** -> Read [references/AGENT_GUIDE.md](references/AGENT_GUIDE.md) - it is a self-contained guide to the current RAGFlow agent DSL schema and includes minimal examples.
+2. **Need CLI syntax or option details?** -> Read [references/COMMANDS.md](references/COMMANDS.md) - it's organized by workflow scenario with full option tables.
+3. **Editing client code or checking request/response shapes?** -> Read [references/API.md](references/API.md) - it has code examples for every `RagflowClient` method.
+4. **A command failed?** -> Read [references/TROUBLESHOOTING.md](references/TROUBLESHOOTING.md) - common errors with causes and fixes.
+5. **Formatting output for the user?** -> Read [references/REFERENCE.md](references/REFERENCE.md) - consistent response templates and status labels.
 
 ## Key Constraints
 
@@ -92,7 +95,8 @@ The first step in any RAGFlow operation is resolving the target resource ID. Aft
 - **Embedded access uses beta tokens and embedded sessions.** `embed-code`, `embed-info`, `embed-chat`, and `embed-agent-chat` use the shared-site `/api/v1/chatbots/*` or `/api/v1/agentbots/*` routes. If `--beta` is not supplied, the CLI reuses the first `/api/v1/system/tokens` item with `beta` or creates one. For chatbot completions, the CLI auto-bootstraps `session_id` unless `--session` is supplied.
 - **Treat embed auth material as sensitive output.** System tokens, `beta` values, and embed URLs or iframe HTML containing `auth=` are operational secrets. Use them when needed for the task, but do not print the full values back to the user unless the user explicitly asks for them.
 - **Embed URL generation assumes a public RAGFlow origin.** `embed-code` uses `--origin` when supplied; otherwise it falls back to `RAGFLOW_URL`. When the API base URL and the public web origin differ, pass `--origin` explicitly so the generated iframe points at the actual shared-site page.
-- **Agent DSL requires specific top-level fields.** RAGFlow agents need `components`, `history`, `path`, `retrieval`, `globals`, and `graph` in the DSL. Missing fields cause `KeyError` at creation time.
+- **Prefer the current Agent DSL schema from `AGENT_GUIDE.md`.** In practice, hand-authored agents should include `components`, `history`, `path`, `retrieval`, `variables`, `globals`, and `graph`, plus `graph.nodes[].data.name` for every component-backed node.
+- **Iteration agents should iterate over a real list output.** When an upstream `Agent` produces loop items, prefer an object-shaped structured output such as `{"items":[...]}` and point `Iteration.params.items_ref` at `agent:0@structured.items`. Start from `references/examples/agents/04-iteration-agent.json`.
 - **Chunk deletion may need retries.** The v0.25.0 server can return `rm_chunk deleted chunks 0, expect N` due to document-store refresh lag even when the chunk exists. The CLI handles this automatically - it retries after confirming the chunk is still visible via exact ID lookup. If retries still fail, run `scripts/repro-delete-chunks.js` for a clean diagnosis.
 
 ## Output Format

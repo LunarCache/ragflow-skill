@@ -241,6 +241,8 @@ Use this path when the user wants multi-turn Q&A over documents without building
 
 Use this section when the user wants a more autonomous workflow built around an agent DSL and agent sessions.
 
+For a practical guide to the current canvas schema, variable rules, webhook mode, and minimal working DSL files, read [AGENT_GUIDE.md](AGENT_GUIDE.md).
+
 ### Agent lifecycle
 
 ```bash
@@ -252,7 +254,7 @@ node {baseDir}/scripts/ragflow.js update-agent --id <agent_id> --title "New Name
 node {baseDir}/scripts/ragflow.js delete-agents --ids <id1> <id2>
 ```
 
-Agents require a DSL workflow definition. A minimal DSL:
+Agents require a DSL workflow definition. A minimal current-schema DSL:
 
 ```json
 {
@@ -265,33 +267,75 @@ Agents require a DSL workflow definition. A minimal DSL:
           "prologue": "Hello"
         }
       },
-      "downstream": [],
+      "downstream": ["message:0"],
       "upstream": []
+    },
+    "message:0": {
+      "obj": {
+        "component_name": "Message",
+        "params": {
+          "content": ["Hello from RAGFlow"]
+        }
+      },
+      "downstream": [],
+      "upstream": ["begin"]
     }
   },
   "history": [],
   "path": [],
   "retrieval": [],
+  "variables": {},
   "globals": {
     "sys.query": "",
     "sys.user_id": "",
     "sys.conversation_turns": 0,
     "sys.files": [],
-    "sys.history": []
+    "sys.history": [],
+    "sys.date": ""
   },
   "graph": {
     "edges": [],
     "nodes": [
       {
         "id": "begin",
-        "data": { "name": "Begin" },
-        "position": { "x": 0, "y": 0 },
-        "type": "begin"
+        "type": "beginNode",
+        "position": { "x": 50, "y": 200 },
+        "data": {
+          "label": "Begin",
+          "name": "begin",
+          "form": {
+            "mode": "conversational",
+            "prologue": "Hello"
+          }
+        }
+      },
+      {
+        "id": "message:0",
+        "type": "messageNode",
+        "position": { "x": 320, "y": 200 },
+        "data": {
+          "label": "Message",
+          "name": "message_0",
+          "form": {
+            "content": ["Hello from RAGFlow"]
+          }
+        }
       }
     ]
   }
 }
 ```
+
+The full practical guide and additional minimal examples live in:
+
+- `references/AGENT_GUIDE.md`
+- `references/examples/agents/01-conversational-message.json`
+- `references/examples/agents/02-retrieval-message.json`
+- `references/examples/agents/03-tool-agent.json`
+- `references/examples/agents/04-iteration-agent.json`
+- `references/examples/agents/05-webhook-message.json`
+
+For iteration flows, prefer the `04-iteration-agent.json` pattern where an upstream `Agent` emits an object with an `items` array and `Iteration.params.items_ref` points to `agent:0@structured.items`.
 
 ### Agent session management
 
@@ -305,7 +349,10 @@ node {baseDir}/scripts/ragflow.js delete-agent-sessions --agent <agent_id> --ids
 
 ```bash
 node {baseDir}/scripts/ragflow.js agent-chat --agent <agent_id> --session <session_id> --question "Hello"
+node {baseDir}/scripts/ragflow.js agent-chat --agent <agent_id> --session <session_id> --question "Hello" --stream false
 ```
+
+`--stream false` requests the final JSON result directly. The bundled client normalizes current `workflow_finished` envelopes into `{ answer, reference, session_id, id }`.
 
 Use this path when the user explicitly wants an agent workflow instead of a simple retrieval assistant.
 
