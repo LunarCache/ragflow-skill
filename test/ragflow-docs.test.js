@@ -16,6 +16,7 @@ test("README reflects the current local and live test layout", () => {
     "ragflow-agent-guide.test.js",
     "ragflow-api.test.js",
     "ragflow-cli.test.js",
+    "ragflow-docs.test.js",
     "ragflow-e2e.test.js",
     "live-agent-create.test.js",
     "live-delete-chunks.test.js",

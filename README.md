@@ -1,10 +1,10 @@
 # RAGFlow Skill
 
-A Codex/OpenCode skill for operating [RAGFlow](https://github.com/infiniflow/ragflow) v0.25.x through a bundled Node.js CLI and API client.
+A Codex/OpenCode skill for operating [RAGFlow](https://github.com/infiniflow/ragflow) v0.25.1 through a bundled Node.js CLI and API client.
 
 ## Features
 
-- **Full RAGFlow v0.25.x API coverage** - datasets, documents, parsing, chunks, retrieval, chat assistants, agents, embedded site access, model discovery
+- **Full RAGFlow v0.25.1 API coverage** - datasets, documents, parsing, chunks, retrieval, chat assistants, agents, embedded site access, model discovery
 - **Zero dependencies** - pure Node.js, no npm install required
 - **JSON-first output** - `--json` flag for machine-readable output suitable for pipelines
 - **Robust error handling** - automatic retries for transient failures, structured error envelopes
@@ -78,6 +78,7 @@ ragflow-skill/
 |   |-- ragflow-agent-guide.test.js
 |   |-- ragflow-api.test.js
 |   |-- ragflow-cli.test.js
+|   |-- ragflow-docs.test.js
 |   |-- ragflow-e2e.test.js
 |   |-- live-agent-create.test.js
 |   `-- live-delete-chunks.test.js
@@ -121,7 +122,7 @@ ragflow-skill/
 
 ```bash
 # Fast local test suite
-node --test test/ragflow-agent-guide.test.js test/ragflow-api.test.js test/ragflow-cli.test.js test/ragflow-e2e.test.js
+node --test test/ragflow-agent-guide.test.js test/ragflow-api.test.js test/ragflow-cli.test.js test/ragflow-docs.test.js test/ragflow-e2e.test.js
 
 # Run all tests
 node --test test/*.test.js
@@ -196,8 +197,8 @@ const agentAnswer = await client.agentChat(agentId, agentSession.id, "Summarize 
 
 ## Requirements
 
-- **Node.js** 18+ (uses built-in `node:test`, `fetch`, and ES modules)
-- **RAGFlow** v0.25.x server
+- **Node.js** 18+ (uses built-in `node:test` and `fetch`)
+- **RAGFlow** v0.25.1 server
 
 ## License
 

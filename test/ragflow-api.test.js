@@ -6,12 +6,13 @@ const { createClient } = require("../skill-for-ragflow/lib/api.js");
 
 test("agentChat normalizes non-stream workflow_finished payloads", async () => {
   const server = http.createServer((req, res) => {
-    if (req.method === "POST" && req.url === "/api/v1/agents/agent1/completions") {
+    if (req.method === "POST" && req.url === "/api/v1/agents/chat/completion") {
       const chunks = [];
       req.on("data", (chunk) => chunks.push(chunk));
       req.on("end", () => {
         const payload = JSON.parse(Buffer.concat(chunks).toString("utf-8"));
         assert.equal(payload.stream, false);
+        assert.equal(payload.agent_id, "agent1");
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify({
           code: 0,

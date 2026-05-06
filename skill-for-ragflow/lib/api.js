@@ -491,13 +491,13 @@ class RagflowClient {
 
   async chat(chatId, sessionId, question, params = {}) {
     return this._streamRequest(
-      "POST", `/chats/${chatId}/completions`,
-      { question, session_id: sessionId, ...params }
+      "POST", `/chat/completions`,
+      { chat_id: chatId, question, session_id: sessionId, ...params }
     );
   }
 
   async chatSession(chatId, sessionId, data = {}) {
-    const payload = { ...data, session_id: sessionId };
+    const payload = { ...data, chat_id: chatId, session_id: sessionId };
     if (!payload.question && payload.messages) {
       const userMessages = Array.isArray(payload.messages)
         ? payload.messages.filter((message) => message && message.role === "user" && message.content)
@@ -510,9 +510,9 @@ class RagflowClient {
       throw new Error("chatSession requires question or messages with a user message");
     }
     if (data.stream === false || data.stream === "false") {
-      return this.request("POST", `/chats/${chatId}/completions`, { json: payload });
+      return this.request("POST", `/chat/completions`, { json: payload });
     }
-    return this._streamRequest("POST", `/chats/${chatId}/completions`, payload);
+    return this._streamRequest("POST", `/chat/completions`, payload);
   }
 
   // ── Agent ──
@@ -560,30 +560,19 @@ class RagflowClient {
   // ── Agent Chat ──
 
   async agentChat(agentId, sessionId, question, params = {}) {
-    const payload = { question, session_id: sessionId, ...params };
-    if (payload.stream === false || payload.stream === "false") {
-      const result = await this.request("POST", `/agents/${agentId}/completions`, { json: payload });
-      if (result && typeof result === "object") {
-        if (result.answer !== undefined || result.reference !== undefined) return result;
-        if (result.event && result.data && typeof result.data === "object") {
-          const answer = result.data.content !== undefined
-            ? result.data.content
-            : result.data.outputs?.content !== undefined
-              ? result.data.outputs.content
-              : "";
-          const reference = result.data.reference !== undefined ? result.data.reference : null;
-          const normalized = { answer, reference };
-          if (result.session_id !== undefined) normalized.session_id = result.session_id;
-          if (result.message_id !== undefined) normalized.id = result.message_id;
-          return normalized;
-        }
+    const payload = { agent_id: agentId, question, session_id: sessionId, ...params };
+    const wantsStream = payload.stream !== false && payload.stream !== "false";
+    const primaryPath = "/agents/chat/completion";
+
+    const runAgentChat = async (endpoint, body) => {
+      if (!wantsStream) {
+        const result = await this.request("POST", endpoint, { json: body });
+        return this._normalizeAgentChatResult(result);
       }
-      return result;
-    }
-    return this._streamRequest(
-      "POST", `/agents/${agentId}/completions`,
-      payload
-    );
+      return this._streamRequest("POST", endpoint, body);
+    };
+
+    return runAgentChat(primaryPath, payload);
   }
 
   // Embedded website access
@@ -696,6 +685,26 @@ class RagflowClient {
     }
     return query;
   }
+
+  _normalizeAgentChatResult(result) {
+    if (result && typeof result === "object") {
+      if (result.answer !== undefined || result.reference !== undefined) return result;
+      if (result.event && result.data && typeof result.data === "object") {
+        const answer = result.data.content !== undefined
+          ? result.data.content
+          : result.data.outputs?.content !== undefined
+            ? result.data.outputs.content
+            : "";
+        const reference = result.data.reference !== undefined ? result.data.reference : null;
+        const normalized = { answer, reference };
+        if (result.session_id !== undefined) normalized.session_id = result.session_id;
+        if (result.message_id !== undefined) normalized.id = result.message_id;
+        return normalized;
+      }
+    }
+    return result;
+  }
+
 }
 
 function loadEnv() {

@@ -54,7 +54,7 @@ function createStatefulMockServer() {
         ],
       },
     },
-    system: { version: "v0.25.0", logLevels: { ragflow: "INFO" } },
+    system: { version: "v0.25.1", logLevels: { ragflow: "INFO" } },
   };
   const counters = {
     dataset: 0,
@@ -87,11 +87,12 @@ function createStatefulMockServer() {
       const docChunkMatch = pathname.match(/^\/api\/v1\/datasets\/([^/]+)\/documents\/([^/]+)\/chunks(?:\/([^/]+))?$/);
       const chatMatch = pathname.match(/^\/api\/v1\/chats\/([^/]+)$/);
       const chatSessionsMatch = pathname.match(/^\/api\/v1\/chats\/([^/]+)\/sessions$/);
-      const chatSessionMatch = pathname.match(/^\/api\/v1\/chats\/([^/]+)\/sessions\/([^/]+)\/completions$/);
-      const chatCompletionMatch = pathname.match(/^\/api\/v1\/chats\/([^/]+)\/completions$/);
+      const chatSessionMatch = pathname.match(/^\/api\/v1\/chat\/completions$/);
+      const chatCompletionMatch = pathname.match(/^\/api\/v1\/chat\/completions$/);
       const agentMatch = pathname.match(/^\/api\/v1\/agents\/([^/]+)$/);
       const agentSessionsMatch = pathname.match(/^\/api\/v1\/agents\/([^/]+)\/sessions$/);
       const agentCompletionMatch = pathname.match(/^\/api\/v1\/agents\/([^/]+)\/completions$/);
+      const agentCompletionNewMatch = pathname.match(/^\/api\/v1\/agents\/chat\/completion$/);
 
       if (pathname === "/v1/llm/my_llms") {
         jsonResponse(res, state.models);
@@ -358,12 +359,12 @@ function createStatefulMockServer() {
         return;
       }
 
-      if (chatSessionMatch && req.method === "POST") {
-        const chat = state.chats.get(chatSessionMatch[1]);
-        const session = chat.sessions.get(chatSessionMatch[2]);
-        session.messages = json.messages || [];
+      if ((chatSessionMatch || chatCompletionMatch) && req.method === "POST") {
+        const chat = state.chats.get(json.chat_id);
+        const session = chat.sessions.get(json.session_id);
+        session.messages = json.messages || (json.question ? [...session.messages, { role: "user", content: json.question }] : []);
         const lastUserMessage = [...session.messages].reverse().find((message) => message.role === "user");
-        const answer = lastUserMessage ? lastUserMessage.content : "session response";
+        const answer = lastUserMessage ? lastUserMessage.content : json.question || "session response";
         sseResponse(res, {
           answer,
           reference: { chunks: [{ id: "doc1-chunk-1", content: "Retrieved from document" }] },
@@ -429,7 +430,8 @@ function createStatefulMockServer() {
         return;
       }
 
-      if (agentCompletionMatch && req.method === "POST") {
+      if ((agentCompletionMatch || agentCompletionNewMatch) && req.method === "POST") {
+        assert.equal(json.agent_id || agentCompletionMatch?.[1], "agent1");
         const question = json.question || "";
         sseResponse(res, {
           answer: question || "agent response",
@@ -606,8 +608,8 @@ test("stateful e2e workflow covers upload, parsing, retrieval, chat, and agent",
     assert.equal(sessionReply.answer, "Summarize the policy.");
     assertRequest(server.requests.at(-1), {
       method: "POST",
-      path: `/api/v1/chats/${chatId}/completions`,
-      body: { question: "Summarize the policy.", session_id: sessionId },
+      path: "/api/v1/chat/completions",
+      body: { chat_id: chatId, question: "Summarize the policy.", session_id: sessionId },
     });
 
     result = await runCli(server.url, ["create-agent", "--title", "Agent", "--dsl", `@${dsl}`, "--json"]);
@@ -636,6 +638,15 @@ test("stateful e2e workflow covers upload, parsing, retrieval, chat, and agent",
     assert.equal(result.status, 0, result.stderr);
     const agentReply = JSON.parse(result.stdout);
     assert.equal(agentReply.answer, "Analyze the data");
+    assertRequest(server.requests.at(-1), {
+      method: "POST",
+      path: "/api/v1/agents/chat/completion",
+      body: {
+        agent_id: "agent1",
+        question: "Analyze the data",
+        session_id: "asess1",
+      },
+    });
   } finally {
     await server.close();
     fs.rmSync(tempDir, { recursive: true, force: true });

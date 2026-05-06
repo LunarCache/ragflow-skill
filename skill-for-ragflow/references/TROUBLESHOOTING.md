@@ -16,12 +16,12 @@
 | "Chunk not found" | Chunk ID does not exist or belongs to another document | Verify the chunk ID with `list-chunks` before `update-chunk` or `delete-chunks` |
 | `rm_chunk deleted chunks 0, expect 1` | The RAGFlow server accepted the chunk ID but document-store search/delete visibility lagged behind exact ID visibility | `delete-chunks` retries only after exact ID lookup confirms the chunk exists; with `--json`, consume `existing_chunk_ids` and `missing_chunk_ids`; tune with `RAGFLOW_DELETE_CHUNK_RETRIES` and `RAGFLOW_DELETE_CHUNK_RETRY_DELAY_MS`, or run `node scripts/repro-delete-chunks.js` for a clean diagnosis |
 | "`content` is required" | Empty content was submitted to chunk update or set | Provide non-empty content; omitting `--content` on the CLI keeps the existing chunk text |
-| `chat-session` returns Not Found for `/sessions/<session_id>/completions` | That route is the login-session frontend route, not the API-key SDK route | Use the current CLI or client, which posts to `/api/v1/chats/<chat_id>/completions` with `session_id` in the body |
+| `chat-session` returns Not Found | You are calling the login-session frontend route instead of the API-key SDK route | Use the current CLI or client, which posts to `/api/v1/chat/completions` with `chat_id` and `session_id` in the body |
 | `embed-code` or `embed-chat` returns Unauthorized | The embedded shared-site routes authenticate with the system token `beta`, not `RAGFLOW_API_KEY` | Let the CLI auto-create/reuse a token, or pass a valid `--beta` from `/api/v1/system/tokens` |
 | `embed-code` creates a new token unexpectedly | No existing system token had a `beta` value | This matches RAGFlow's embed UI behavior; use `list-system-tokens` to inspect current tokens |
 | `embed-chat` returns only the prologue or an empty answer | The embedded chatbot route was called without `session_id`; RAGFlow uses that first call to create the iframe session | Use the CLI `embed-chat` command, which bootstraps `session_id` automatically, or call `ensureEmbeddedChatSession()` before `embeddedChat()` in API code |
 | `list-models` returns Unauthorized | The `/v1/llm/my_llms` endpoint needs a web-session token in some deployments | Set `RAGFLOW_WEB_TOKEN` |
-| `update-document` gets Method Not Allowed | The server does not match the v0.25.0 source expected by this skill | Use a v0.25.0-compatible server; document updates are sent with `PATCH` |
+| `update-document` gets Method Not Allowed | The server does not match the v0.25.1 route shape expected by this skill | Use a v0.25.1-compatible server; document updates are sent with `PATCH` |
 | `Invalid URL` | `RAGFLOW_URL` is empty or malformed | Use a server root such as `http://localhost:9380`; bare hosts like `localhost:9380` are normalized to `http://...` |
 | Connection refused | `RAGFLOW_URL` is wrong or the server is down | Verify the URL and that the RAGFlow server is running |
 

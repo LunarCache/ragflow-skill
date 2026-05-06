@@ -81,7 +81,7 @@ await client.updateDocument("<dataset_id>", "<doc_id>", {
 await client.deleteDocuments("<dataset_id>", ["<doc_id1>", "<doc_id2>"]);
 ```
 
-RAGFlow v0.25.0 defines document updates as `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. `updateDocument()` sends that request directly.
+RAGFlow v0.25.1 defines document updates as `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. `updateDocument()` sends that request directly.
 
 You can also filter documents by metadata:
 
@@ -143,7 +143,7 @@ await client.updateChunk("<dataset_id>", "<doc_id>", "<chunk_id>", {
 await client.deleteChunks("<dataset_id>", "<doc_id>", ["<chunk_id1>"]);
 ```
 
-`deleteChunks()` retries the v0.25.0 transient `rm_chunk deleted chunks 0, expect N` response only after `getChunk()` confirms the target chunk still exists. This distinguishes document-store refresh delay from a genuinely missing chunk. Override with:
+`deleteChunks()` retries the transient `rm_chunk deleted chunks 0, expect N` response only after `getChunk()` confirms the target chunk still exists. This distinguishes document-store refresh delay from a genuinely missing chunk. Override with:
 
 ```javascript
 await client.deleteChunks("<dataset_id>", "<doc_id>", ["<chunk_id1>"], {
@@ -271,7 +271,7 @@ const sessionAnswerFromMessages = await client.chatSession("<chat_id>", "<sessio
 });
 ```
 
-`chatSession()` uses `POST /api/v1/chats/{chat_id}/completions` with `session_id` in the JSON body. This is the API-key SDK route in v0.25.0. The login-session frontend route `/api/v1/chats/{chat_id}/sessions/{session_id}/completions` is intentionally not used here.
+`chatSession()` uses `POST /api/v1/chat/completions` with `chat_id` and `session_id` in the JSON body.
 
 ## Agent
 
@@ -322,6 +322,7 @@ const finalAnswer = await client.agentChat("<agent_id>", "<session_id>", "Analyz
 ```
 
 When `stream: false` is used, `agentChat()` still normalizes current `workflow_finished` or `done` JSON envelopes into the same final answer shape used by the streaming path.
+`agentChat()` uses `POST /api/v1/agents/chat/completion` with `agent_id` in the JSON body.
 
 ## Embedded Website Access
 
@@ -368,7 +369,7 @@ const models = await client.listModels({ include_details: true });
 // Returns: { groups: [...], total: <n> }
 ```
 
-RAGFlow v0.25.0 exposes model discovery at `/v1/llm/my_llms`. If the endpoint requires web-session authentication, provide `RAGFLOW_WEB_TOKEN`.
+RAGFlow v0.25.1 exposes model discovery at `/v1/llm/my_llms`. If the endpoint requires web-session authentication, provide `RAGFLOW_WEB_TOKEN`.
 
 Use model names plus provider suffixes when creating resources, for example `qwen-turbo@Tongyi-Qianwen` for `llm_id` and `text-embedding-v4@Tongyi-Qianwen` for `embedding_model`. Some deployments return numeric `id` fields from `/v1/llm/my_llms`; those are server row IDs and should not be sent as `llm_id`.
 

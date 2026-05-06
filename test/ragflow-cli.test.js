@@ -60,8 +60,12 @@ function createMockServer(options = {}) {
       requests.push(record);
 
       const { pathname } = new URL(req.url, "http://127.0.0.1");
-      if (pathname.endsWith("/completions")) {
-        if (options.embeddedChatBootstrap && pathname.includes("/chatbots/")) {
+      const isChatCompletion = pathname === "/api/v1/chat/completions";
+      const isAgentCompletion = pathname === "/api/v1/agents/chat/completion";
+      const isEmbeddedChatCompletion = pathname.startsWith("/api/v1/chatbots/") && pathname.endsWith("/completions");
+      const isEmbeddedAgentCompletion = pathname.startsWith("/api/v1/agentbots/") && pathname.endsWith("/completions");
+      if (isChatCompletion || isAgentCompletion || isEmbeddedChatCompletion || isEmbeddedAgentCompletion) {
+        if (options.embeddedChatBootstrap && isEmbeddedChatCompletion) {
           const body = requestJson(record) || {};
           if (!body.session_id) {
             sseResponse(res, { answer: "Welcome", reference: {}, session_id: "embed-sess", id: null });
@@ -70,7 +74,7 @@ function createMockServer(options = {}) {
           jsonResponse(res, { answer: "embedded ok", reference: { chunks: [] }, session_id: body.session_id });
           return;
         }
-        if (options.agentEventStream && pathname.includes("/agents/")) {
+        if (options.agentEventStream && isAgentCompletion) {
           agentEventResponse(res);
           return;
         }
@@ -107,7 +111,7 @@ function createMockServer(options = {}) {
       }
 
       if (pathname === "/api/v1/system/version" && req.method === "GET") {
-        jsonResponse(res, "v0.25.0");
+        jsonResponse(res, "v0.25.1");
         return;
       }
       if (pathname === "/api/v1/system/config/log" && req.method === "GET") {
@@ -396,8 +400,8 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
     { args: ["list-sessions", "--chat", "chat1", "--page", "1", "--json"], expect: { method: "GET", path: "/api/v1/chats/chat1/sessions", query: { page: 1 } } },
     { args: ["create-session", "--chat", "chat1", "--name", "Session", "--json"], expect: { method: "POST", path: "/api/v1/chats/chat1/sessions", body: { name: "Session" } } },
     { args: ["delete-sessions", "--chat", "chat1", "--ids", "sess1", "--json"], expect: { method: "DELETE", path: "/api/v1/chats/chat1/sessions", body: { ids: ["sess1"] } } },
-    { args: ["chat", "--chat", "chat1", "--session", "sess1", "-q", "Hello", "--json"], expect: { method: "POST", path: "/api/v1/chats/chat1/completions", body: { question: "Hello", session_id: "sess1" } } },
-    { args: ["chat-session", "--chat", "chat1", "--session", "sess1", "--messages", `@${sessionMessages}`, "--llm-id", "model-a", "--temperature", "0.2", "--top-p", "0.9", "--frequency-penalty", "0.1", "--presence-penalty", "0.0", "--max-tokens", "128", "--json"], expect: { method: "POST", path: "/api/v1/chats/chat1/completions", body: { question: "Summarize the policy.", session_id: "sess1", llm_id: "model-a", temperature: 0.2, top_p: 0.9, frequency_penalty: 0.1, presence_penalty: 0, max_tokens: 128 } } },
+    { args: ["chat", "--chat", "chat1", "--session", "sess1", "-q", "Hello", "--json"], expect: { method: "POST", path: "/api/v1/chat/completions", body: { chat_id: "chat1", question: "Hello", session_id: "sess1" } } },
+    { args: ["chat-session", "--chat", "chat1", "--session", "sess1", "--messages", `@${sessionMessages}`, "--llm-id", "model-a", "--temperature", "0.2", "--top-p", "0.9", "--frequency-penalty", "0.1", "--presence-penalty", "0.0", "--max-tokens", "128", "--json"], expect: { method: "POST", path: "/api/v1/chat/completions", body: { chat_id: "chat1", question: "Summarize the policy.", session_id: "sess1", llm_id: "model-a", temperature: 0.2, top_p: 0.9, frequency_penalty: 0.1, presence_penalty: 0, max_tokens: 128 } } },
     { args: ["list-agents", "--page", "1", "--page-size", "2", "--name", "Agent", "--json"], expect: { method: "GET", path: "/api/v1/agents", query: { page: 1, page_size: 2, title: "Agent" } } },
     { args: ["create-agent", "--title", "Agent", "--dsl", `@${dsl}`, "--description", "Desc", "--json"], expect: { method: "POST", path: "/api/v1/agents", body: { title: "Agent", description: "Desc", dsl: canonicalDsl } } },
     { args: ["create-agent", "--title", "Agent Inline", "--dsl", inlineDsl, "--json"], expect: { method: "POST", path: "/api/v1/agents", body: { title: "Agent Inline", dsl: canonicalDsl } } },
@@ -407,8 +411,8 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
     { args: ["list-agent-sessions", "--agent", "agent1", "--page", "1", "--json"], expect: { method: "GET", path: "/api/v1/agents/agent1/sessions", query: { page: 1 } } },
     { args: ["create-agent-session", "--agent", "agent1", "--name", "Agent Session", "--json"], expect: { method: "POST", path: "/api/v1/agents/agent1/sessions", body: { name: "Agent Session" } } },
     { args: ["delete-agent-sessions", "--agent", "agent1", "--ids", "asess1", "--json"], expect: { method: "DELETE", path: "/api/v1/agents/agent1/sessions", body: { ids: ["asess1"] } } },
-    { args: ["agent-chat", "--agent", "agent1", "--session", "asess1", "-q", "Hello", "--json"], expect: { method: "POST", path: "/api/v1/agents/agent1/completions", body: { question: "Hello", session_id: "asess1" } } },
-    { args: ["agent-chat", "--agent", "agent1", "--session", "asess1", "-q", "Hello", "--stream", "false", "--json"], expect: { method: "POST", path: "/api/v1/agents/agent1/completions", body: { question: "Hello", session_id: "asess1", stream: false } } },
+    { args: ["agent-chat", "--agent", "agent1", "--session", "asess1", "-q", "Hello", "--json"], expect: { method: "POST", path: "/api/v1/agents/chat/completion", body: { agent_id: "agent1", question: "Hello", session_id: "asess1" } } },
+    { args: ["agent-chat", "--agent", "agent1", "--session", "asess1", "-q", "Hello", "--stream", "false", "--json"], expect: { method: "POST", path: "/api/v1/agents/chat/completion", body: { agent_id: "agent1", question: "Hello", session_id: "asess1", stream: false } } },
     { args: ["metadata-summary", "--dataset", "ds1", "--doc-ids", "doc1", "doc2", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/metadata/summary", query: { doc_ids: "doc1,doc2" } } },
     { args: ["system-version", "--json"], expect: { method: "GET", path: "/api/v1/system/version" } },
     { args: ["get-log-levels", "--json"], expect: { method: "GET", path: "/api/v1/system/config/log" } },
@@ -552,7 +556,7 @@ test("embed-chat bootstraps an embedded session when --session is omitted", asyn
   }
 });
 
-test("delete-chunks retries transient v0.25.0 zero-delete response", async () => {
+test("delete-chunks retries transient v0.25.1 zero-delete response", async () => {
   const server = await createMockServer({ deleteChunkFailsOnce: true });
   const previousDelay = process.env.RAGFLOW_DELETE_CHUNK_RETRY_DELAY_MS;
   process.env.RAGFLOW_DELETE_CHUNK_RETRY_DELAY_MS = "1";
@@ -679,7 +683,7 @@ test("JSON mode emits structured errors for unknown commands", async () => {
   });
 });
 
-test("list-models fails directly on unauthorized v0.25.0 model endpoint", async () => {
+test("list-models fails directly on unauthorized v0.25.1 model endpoint", async () => {
   const server = await createMockServer({ modelsUnauthorized: true });
   try {
     const result = await runCli(server.url, ["list-models", "--json"]);

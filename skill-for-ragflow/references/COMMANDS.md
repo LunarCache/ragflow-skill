@@ -59,7 +59,7 @@ node {baseDir}/scripts/ragflow.js update-dataset --id <id> --name "New Name"
 node {baseDir}/scripts/ragflow.js delete-datasets --ids <id1> <id2>
 ```
 
-When you provide `--embedding-model` to a real v0.25.0 server, use the tenant model identifier format `<model_name>@<provider>`, for example `text-embedding-v4@Tongyi-Qianwen`. Use `list-models` to discover available model/provider pairs.
+When you provide `--embedding-model` to a real v0.25.1 server, use the tenant model identifier format `<model_name>@<provider>`, for example `text-embedding-v4@Tongyi-Qianwen`. Use `list-models` to discover available model/provider pairs.
 
 Typical flow:
 
@@ -83,7 +83,7 @@ node {baseDir}/scripts/ragflow.js metadata-summary --dataset <id> --doc-ids <doc
 node {baseDir}/scripts/ragflow.js delete-documents --dataset <id> --ids <doc_id1>
 ```
 
-`update-document` follows the v0.25.0 RAGFlow source and sends `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. It accepts `name`, `parser_config`, `chunk_method`, `enabled`, and `meta_fields`.
+`update-document` follows the current v0.25.1 RAGFlow route and sends `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. It accepts `name`, `parser_config`, `chunk_method`, `enabled`, and `meta_fields`.
 
 `list-documents` supports `metadata`, `metadata_condition`, `return_empty_metadata`, `orderby`, `desc`, `suffix`, `types`, and `run`.
 
@@ -122,7 +122,7 @@ node {baseDir}/scripts/ragflow.js delete-chunks --dataset <id> --document <doc_i
 node {baseDir}/scripts/repro-delete-chunks.js
 ```
 
-`add-chunk` writes directly to the document store and returns the generated chunk ID immediately. On Elasticsearch/OpenSearch-style stores, exact `GET` by ID can see a new chunk before search/delete-by-query can see it because insert uses the store refresh cycle. `delete-chunks` handles this by retrying the v0.25.0 transient response `rm_chunk deleted chunks 0, expect N` only after an exact ID lookup confirms the target chunk still exists. Tune this with `RAGFLOW_DELETE_CHUNK_RETRIES` and `RAGFLOW_DELETE_CHUNK_RETRY_DELAY_MS`.
+`add-chunk` writes directly to the document store and returns the generated chunk ID immediately. On Elasticsearch/OpenSearch-style stores, exact `GET` by ID can see a new chunk before search/delete-by-query can see it because insert uses the store refresh cycle. `delete-chunks` handles this by retrying the transient response `rm_chunk deleted chunks 0, expect N` only after an exact ID lookup confirms the target chunk still exists. Tune this with `RAGFLOW_DELETE_CHUNK_RETRIES` and `RAGFLOW_DELETE_CHUNK_RETRY_DELAY_MS`.
 
 With `--json`, `delete-chunks` returns a structured envelope instead of the bare server result:
 
@@ -233,7 +233,7 @@ node {baseDir}/scripts/ragflow.js chat-session --chat <chat_id> --session <sessi
 node {baseDir}/scripts/ragflow.js chat-session --chat <chat_id> --session <session_id> --question "Hello"
 ```
 
-`chat-session` uses the API-key SDK route `POST /api/v1/chats/{chat_id}/completions` with `session_id` in the body. The v0.25.0 login-session route `POST /api/v1/chats/{chat_id}/sessions/{session_id}/completions` is not used by this CLI. When `--messages` is provided, the CLI extracts the last `role: "user"` message as `question`; use `--question` when you already have a single user prompt.
+`chat-session` uses `POST /api/v1/chat/completions` with `chat_id` and `session_id` in the body. When `--messages` is provided, the CLI extracts the last `role: "user"` message as `question`; use `--question` when you already have a single user prompt.
 
 Use this path when the user wants multi-turn Q&A over documents without building a full agent workflow.
 
@@ -253,6 +253,8 @@ node {baseDir}/scripts/ragflow.js get-agent --id <agent_id>
 node {baseDir}/scripts/ragflow.js update-agent --id <agent_id> --title "New Name"
 node {baseDir}/scripts/ragflow.js delete-agents --ids <id1> <id2>
 ```
+
+`agent-chat` uses `POST /api/v1/agents/chat/completion` with `agent_id` in the JSON body.
 
 Agents require a DSL workflow definition. A minimal current-schema DSL:
 
@@ -426,7 +428,7 @@ node {baseDir}/scripts/ragflow.js list-models --all
 
 This is usually the first stop when the user is troubleshooting model availability or deciding which model to use downstream.
 
-RAGFlow v0.25.0 exposes model discovery at `/v1/llm/my_llms`. If the endpoint requires web-session authentication, provide `RAGFLOW_WEB_TOKEN`.
+RAGFlow v0.25.1 exposes model discovery at `/v1/llm/my_llms`. If the endpoint requires web-session authentication, provide `RAGFLOW_WEB_TOKEN`.
 
 For create operations, use model names plus provider suffixes such as `qwen-turbo@Tongyi-Qianwen` or `text-embedding-v4@Tongyi-Qianwen`. If `list-models --include-details` shows numeric `id` fields, treat them as server row IDs, not values for `--llm-id` or `--embedding-model`.
 
