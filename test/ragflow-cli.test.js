@@ -218,7 +218,7 @@ function createMockServer(options = {}) {
   });
 }
 
-function runCli(baseUrl, args) {
+function runCli(baseUrl, args, input = "") {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [cliPath, ...args], {
       cwd: skillDir,
@@ -227,7 +227,7 @@ function runCli(baseUrl, args) {
         RAGFLOW_URL: baseUrl,
         RAGFLOW_API_KEY: "test-key",
       },
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe"],
     });
 
     let stdout = "";
@@ -240,6 +240,7 @@ function runCli(baseUrl, args) {
     });
     child.on("error", (err) => resolve({ status: -1, stdout, stderr: err.message }));
     child.on("close", (status) => resolve({ status, stdout, stderr }));
+    child.stdin.end(input);
   });
 }
 
@@ -419,7 +420,7 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
     { args: ["set-log-level", "--pkg-name", "ragflow", "--level", "DEBUG", "--json"], expect: { method: "PUT", path: "/api/v1/system/config/log", body: { pkg_name: "ragflow", level: "DEBUG" } } },
     { args: ["list-system-tokens", "--json"], expect: { method: "GET", path: "/api/v1/system/tokens" } },
     { args: ["create-system-token", "--json"], expect: { method: "POST", path: "/api/v1/system/tokens" } },
-    { args: ["delete-system-token", "--token", "ragflow-token", "--json"], expect: { method: "DELETE", path: "/api/v1/system/tokens/ragflow-token" } },
+    { args: ["delete-system-token", "--token-stdin", "--json"], stdin: "ragflow-token\n", expect: { method: "DELETE", path: "/api/v1/system/tokens/ragflow-token" } },
     { args: ["embed-info", "--chat", "chat1", "--beta", "beta-token", "--json"], expect: { method: "GET", path: "/api/v1/chatbots/chat1/info", auth: "beta-token" } },
     { args: ["embed-info", "--agent", "agent1", "--beta", "beta-token", "--json"], expect: { method: "GET", path: "/api/v1/agentbots/agent1/inputs", auth: "beta-token" } },
     { args: ["embed-chat", "--chat", "chat1", "--beta", "beta-token", "--question", "Hello", "--conversation-id", "msg1", "--session", "sess1", "--quote", "--stream", "false", "--json"], expect: { method: "POST", path: "/api/v1/chatbots/chat1/completions", auth: "beta-token", body: { question: "Hello", conversation_id: "msg1", session_id: "sess1", quote: true, stream: false } } },
@@ -430,7 +431,7 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
   try {
     for (const item of cases) {
       const start = server.requests.length;
-      const result = await runCli(server.url, item.args);
+      const result = await runCli(server.url, item.args, item.stdin);
       assert.equal(result.status, 0, `${item.args.join(" ")}\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
       assert.doesNotMatch(result.stdout, /\u2713|\u2192|Fetching|Creating|Deleting|Updating|Found/);
       assert.doesNotThrow(() => JSON.parse(result.stdout), item.args.join(" "));
@@ -458,6 +459,20 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
   } finally {
     await server.close();
     fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("delete-system-token rejects argv token input", async () => {
+  const server = await createMockServer();
+  try {
+    const result = await runCli(server.url, ["delete-system-token", "--token", "ragflow-token", "--json"]);
+    assert.notEqual(result.status, 0);
+    assert.equal(result.stderr, "");
+    const payload = JSON.parse(result.stdout);
+    assert.match(payload.error.message, /no longer accepts --token/);
+    assert.equal(server.requests.length, 0);
+  } finally {
+    await server.close();
   }
 });
 

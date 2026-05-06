@@ -34,6 +34,9 @@ test("agent docs align on current iteration and non-stream agent-chat behavior",
   const troubleshooting = read(path.join("skill-for-ragflow", "references", "TROUBLESHOOTING.md"));
 
   assert.match(skill, /agent:0@structured\.items/);
+  assert.match(commands, /delete-system-token --token-stdin/);
+  assert.match(commands, /delete-system-token --token-file/);
+  assert.doesNotMatch(commands, /delete-system-token --token <ragflow-token>/);
   assert.match(commands, /agent-chat --agent <agent_id> --session <session_id> --question "Hello" --stream false/);
   assert.match(commands, /workflow_finished/);
   assert.doesNotMatch(commands, /source-backed/i);

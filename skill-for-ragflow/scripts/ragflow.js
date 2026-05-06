@@ -190,6 +190,18 @@ function jsonStringOption(value, optionName) {
   return JSON.stringify(jsonOption(value, optionName));
 }
 
+function readStdinText() {
+  return new Promise((resolve, reject) => {
+    let data = "";
+    process.stdin.setEncoding("utf8");
+    process.stdin.on("data", (chunk) => {
+      data += chunk;
+    });
+    process.stdin.on("end", () => resolve(data));
+    process.stdin.on("error", reject);
+  });
+}
+
 function uploadFileSpec(value) {
   const source = String(value);
   const eq = source.indexOf("=");
@@ -943,7 +955,23 @@ async function createSystemToken() {
 
 async function deleteSystemToken(opts) {
   const client = createClient();
-  const token = requireOpt(opts, "token");
+  let token = "";
+  if (opts.token !== undefined) {
+    throw new Error("delete-system-token no longer accepts --token. Use --token-file or --token-stdin.");
+  }
+  if (opts.tokenFile) {
+    token = fs.readFileSync(path.resolve(process.cwd(), opts.tokenFile), "utf-8").trim();
+  } else if (opts.tokenStdin) {
+    if (process.stdin.isTTY) {
+      throw new Error("--token-stdin requires piped input");
+    }
+    token = (await readStdinText()).trim();
+  } else {
+    throw new Error("Provide --token-file or --token-stdin");
+  }
+  if (!token) {
+    throw new Error("Token input was empty");
+  }
   info("Deleting system token...");
   const result = await client.deleteSystemToken(token);
   ok("System token deleted");
@@ -1202,7 +1230,8 @@ ${C.bold}Common Options:${C.reset}
     --chat              Chat assistant ID
     --agent             Agent ID
     --session           Session ID
-    --token             System token
+    --token-file        Read token from a file
+    --token-stdin       Read token from stdin
     --beta, --auth      Embed auth beta token
     --origin            Public RAGFlow origin for embed code
     --type              Embed type: fullscreen or widget

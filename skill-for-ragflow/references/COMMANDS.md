@@ -367,8 +367,11 @@ Use this section when the user wants the same website embed behavior as RAGFlow'
 ```bash
 node {baseDir}/scripts/ragflow.js list-system-tokens
 node {baseDir}/scripts/ragflow.js create-system-token
-node {baseDir}/scripts/ragflow.js delete-system-token --token <ragflow-token>
+node {baseDir}/scripts/ragflow.js delete-system-token --token-file token.txt
+cat token.txt | node {baseDir}/scripts/ragflow.js delete-system-token --token-stdin
 ```
+
+`delete-system-token` reads the token from stdin or a file so the secret never needs to appear in argv. Prefer `--token-stdin` for ad hoc use and `--token-file` when you already store the token in a local file.
 
 `embed-*` commands accept `--beta <token>` when you already have the embedded auth token. Without `--beta`, the CLI reuses the first system token with `beta`; if none exists, it creates one. Treat both the normal system token and the `beta` value as sensitive.
 

@@ -14,6 +14,7 @@ A Codex/OpenCode skill for operating [RAGFlow](https://github.com/infiniflow/rag
 
 - Added embedded site support for RAGFlow shared chatbot and agent routes, including token management, iframe/widget code generation, metadata inspection, and embedded chat calls.
 - `upload-documents --files` now accepts `display-name=path` so uploaded documents keep the original user-facing filename instead of a temporary task path.
+- `delete-system-token` now reads the token from stdin or a file instead of a command-line argument.
 - Clarified model identifier usage for create operations: use `<model>@<provider>` such as `qwen-turbo@Tongyi-Qianwen`, not numeric model row IDs.
 - Normalized bare `RAGFLOW_URL` hosts like `localhost:9380` to `http://localhost:9380` in the client and embed URL generation flow.
 
