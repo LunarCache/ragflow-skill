@@ -401,3 +401,9 @@ export RAGFLOW_API_KEY=ragflow-xxxxx
 ```
 
 `RAGFLOW_URL` should be the server root, for example `http://127.0.0.1:9380`. Bare hosts such as `localhost:9380` are normalized to `http://localhost:9380`. The client adds `/api/v1` for REST endpoints and `/v1` for model discovery.
+
+### Security Best Practices
+
+- **Production: Use HTTPS.** Set `RAGFLOW_URL=https://...` for production deployments to protect the API key in transit.
+- **Least-privilege keys.** Create dedicated API keys with minimal permissions for specific workflows rather than using admin-level keys.
+- **Protect secrets.** Never commit `RAGFLOW_API_KEY` to version control. Use environment variables or a `.env` file that is excluded from git.

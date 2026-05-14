@@ -1,7 +1,7 @@
 ---
 name: skill-for-ragflow
 description: Operate RAGFlow v0.25.2 deployments through the bundled Node CLI and API client. Use when user needs to manage RAGFlow datasets, documents, uploads, parsing, chunks, retrieval, chat assistants, chat sessions, agents, agent sessions, embedded website access, metadata filters, model discovery, system settings, or API diagnostics. Also use when the user asks about knowledge bases, document chunking, vector retrieval, embed code, or RAG workflows and the current context explicitly involves a RAGFlow server or deployment.
-version: 1.2.5
+version: 1.2.6
 metadata:
   openclaw:
     requires:
@@ -24,6 +24,12 @@ Use this skill to operate RAGFlow through `scripts/ragflow.js`. The CLI wraps th
 - Use Node.js to run bundled scripts.
 - Tune chunk deletion retries only when needed with `RAGFLOW_DELETE_CHUNK_RETRIES` and `RAGFLOW_DELETE_CHUNK_RETRY_DELAY_MS`.
 - Tune the chunk deletion diagnostic script only when needed with `RAGFLOW_REPRO_TIMEOUT_MS`, `RAGFLOW_REPRO_DELETE_RETRIES`, `RAGFLOW_REPRO_DELETE_RETRY_DELAY_MS`, and `RAGFLOW_REPRO_EMBEDDING_MODEL`.
+
+## Security Notes
+
+- **Use HTTPS in production.** Production deployments should use `https://` for `RAGFLOW_URL` to protect the API key in transit. Local development (`http://localhost`) is acceptable for testing.
+- **Use least-privilege API keys.** Consider creating dedicated API keys with minimal permissions for specific workflows rather than using admin-level keys.
+- **Protect your API key.** Never share `RAGFLOW_API_KEY` in chat messages or commit it to version control. Use environment variables or the skill's `.env` file.
 
 ## Quick Command Reference
 
