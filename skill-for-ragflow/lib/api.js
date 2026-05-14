@@ -24,7 +24,6 @@ class RagflowClient {
     this.apiPrefix = "/api/v1";
     this.timeout = options.timeout || DEFAULT_TIMEOUT;
     this.maxRetries = options.maxRetries !== undefined ? options.maxRetries : MAX_RETRIES;
-    this.webToken = options.webToken || process.env.RAGFLOW_WEB_TOKEN || "";
   }
 
   async request(method, endpoint, options = {}) {
@@ -562,7 +561,7 @@ class RagflowClient {
   async agentChat(agentId, sessionId, question, params = {}) {
     const payload = { agent_id: agentId, question, session_id: sessionId, ...params };
     const wantsStream = payload.stream !== false && payload.stream !== "false";
-    const primaryPath = "/agents/chat/completion";
+    const primaryPath = "/agents/chat/completions";
 
     const runAgentChat = async (endpoint, body) => {
       if (!wantsStream) {
@@ -635,10 +634,8 @@ class RagflowClient {
 
   async listModels(params = {}) {
     const query = this._buildQuery(params);
-    const authToken = this.webToken || this.apiKey;
     return this.request("GET", `/llm/my_llms?${query.toString()}`, {
       apiPrefix: "/v1",
-      authToken,
     });
   }
 

@@ -132,7 +132,6 @@ Some warnings are expected:
 
 - `RAGFLOW_API_KEY` is a sensitive credential
 - `RAGFLOW_URL` points to a live RAGFlow deployment that may receive uploaded files
-- `RAGFLOW_WEB_TOKEN` is optional and used only for model discovery on deployments that require a web-session token
 - the diagnostic script may create and delete temporary RAGFlow resources
 
 These warnings are not failures by themselves. They become a problem only if the published metadata claims fewer privileges than the package actually needs.

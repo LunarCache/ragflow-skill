@@ -54,7 +54,7 @@ function createStatefulMockServer() {
         ],
       },
     },
-    system: { version: "v0.25.1", logLevels: { ragflow: "INFO" } },
+    system: { version: "v0.25.2", logLevels: { ragflow: "INFO" } },
   };
   const counters = {
     dataset: 0,
@@ -640,7 +640,7 @@ test("stateful e2e workflow covers upload, parsing, retrieval, chat, and agent",
     assert.equal(agentReply.answer, "Analyze the data");
     assertRequest(server.requests.at(-1), {
       method: "POST",
-      path: "/api/v1/agents/chat/completion",
+      path: "/api/v1/agents/chat/completions",
       body: {
         agent_id: "agent1",
         question: "Analyze the data",

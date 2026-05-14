@@ -61,7 +61,7 @@ function createMockServer(options = {}) {
 
       const { pathname } = new URL(req.url, "http://127.0.0.1");
       const isChatCompletion = pathname === "/api/v1/chat/completions";
-      const isAgentCompletion = pathname === "/api/v1/agents/chat/completion";
+      const isAgentCompletion = pathname === "/api/v1/agents/chat/completions";
       const isEmbeddedChatCompletion = pathname.startsWith("/api/v1/chatbots/") && pathname.endsWith("/completions");
       const isEmbeddedAgentCompletion = pathname.startsWith("/api/v1/agentbots/") && pathname.endsWith("/completions");
       if (isChatCompletion || isAgentCompletion || isEmbeddedChatCompletion || isEmbeddedAgentCompletion) {
@@ -111,7 +111,7 @@ function createMockServer(options = {}) {
       }
 
       if (pathname === "/api/v1/system/version" && req.method === "GET") {
-        jsonResponse(res, "v0.25.1");
+        jsonResponse(res, "v0.25.2");
         return;
       }
       if (pathname === "/api/v1/system/config/log" && req.method === "GET") {
@@ -412,8 +412,8 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
     { args: ["list-agent-sessions", "--agent", "agent1", "--page", "1", "--json"], expect: { method: "GET", path: "/api/v1/agents/agent1/sessions", query: { page: 1 } } },
     { args: ["create-agent-session", "--agent", "agent1", "--name", "Agent Session", "--json"], expect: { method: "POST", path: "/api/v1/agents/agent1/sessions", body: { name: "Agent Session" } } },
     { args: ["delete-agent-sessions", "--agent", "agent1", "--ids", "asess1", "--json"], expect: { method: "DELETE", path: "/api/v1/agents/agent1/sessions", body: { ids: ["asess1"] } } },
-    { args: ["agent-chat", "--agent", "agent1", "--session", "asess1", "-q", "Hello", "--json"], expect: { method: "POST", path: "/api/v1/agents/chat/completion", body: { agent_id: "agent1", question: "Hello", session_id: "asess1" } } },
-    { args: ["agent-chat", "--agent", "agent1", "--session", "asess1", "-q", "Hello", "--stream", "false", "--json"], expect: { method: "POST", path: "/api/v1/agents/chat/completion", body: { agent_id: "agent1", question: "Hello", session_id: "asess1", stream: false } } },
+    { args: ["agent-chat", "--agent", "agent1", "--session", "asess1", "-q", "Hello", "--json"], expect: { method: "POST", path: "/api/v1/agents/chat/completions", body: { agent_id: "agent1", question: "Hello", session_id: "asess1" } } },
+    { args: ["agent-chat", "--agent", "agent1", "--session", "asess1", "-q", "Hello", "--stream", "false", "--json"], expect: { method: "POST", path: "/api/v1/agents/chat/completions", body: { agent_id: "agent1", question: "Hello", session_id: "asess1", stream: false } } },
     { args: ["metadata-summary", "--dataset", "ds1", "--doc-ids", "doc1", "doc2", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/metadata/summary", query: { doc_ids: "doc1,doc2" } } },
     { args: ["system-version", "--json"], expect: { method: "GET", path: "/api/v1/system/version" } },
     { args: ["get-log-levels", "--json"], expect: { method: "GET", path: "/api/v1/system/config/log" } },
@@ -571,7 +571,7 @@ test("embed-chat bootstraps an embedded session when --session is omitted", asyn
   }
 });
 
-test("delete-chunks retries transient v0.25.1 zero-delete response", async () => {
+test("delete-chunks retries transient zero-delete response", async () => {
   const server = await createMockServer({ deleteChunkFailsOnce: true });
   const previousDelay = process.env.RAGFLOW_DELETE_CHUNK_RETRY_DELAY_MS;
   process.env.RAGFLOW_DELETE_CHUNK_RETRY_DELAY_MS = "1";
@@ -698,7 +698,7 @@ test("JSON mode emits structured errors for unknown commands", async () => {
   });
 });
 
-test("list-models fails directly on unauthorized v0.25.1 model endpoint", async () => {
+test("list-models fails directly on unauthorized model endpoint", async () => {
   const server = await createMockServer({ modelsUnauthorized: true });
   try {
     const result = await runCli(server.url, ["list-models", "--json"]);
@@ -706,8 +706,8 @@ test("list-models fails directly on unauthorized v0.25.1 model endpoint", async 
     assert.equal(result.stderr, "");
     const payload = JSON.parse(result.stdout);
     assert.match(payload.error.message, /Unauthorized/);
-    assert.match(payload.error.message, /RAGFLOW_WEB_TOKEN/);
-    assert.equal(payload.error.raw_message, "Unauthorized. Set RAGFLOW_WEB_TOKEN from a web login session for /v1/llm/my_llms.");
+    assert.match(payload.error.message, /RAGFLOW_API_KEY/);
+    assert.equal(payload.error.raw_message, "Unauthorized. Verify RAGFLOW_API_KEY is valid for /v1/llm/my_llms.");
     assert.equal(payload.error.code, 401);
     assert.equal(payload.error.status, 401);
     assert.equal(payload.error.command, "list-models");

@@ -2,7 +2,7 @@
 
 Read this file only when you need to author, debug, or review a RAGFlow Agent/Canvas DSL. For CLI syntax, read [COMMANDS.md](COMMANDS.md). For SDK request and response shapes, read [API.md](API.md). For failures and recovery steps, read [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
-This guide distills the current RAGFlow v0.25.1 agent behavior into practical schema rules, minimal examples, and failure patterns you can use directly.
+This guide distills the current RAGFlow v0.25.2 agent behavior into practical schema rules, minimal examples, and failure patterns you can use directly.
 
 ## Contents
 

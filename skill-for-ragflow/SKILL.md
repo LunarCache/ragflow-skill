@@ -1,7 +1,7 @@
 ---
 name: skill-for-ragflow
-description: Operate RAGFlow v0.25.1 deployments through the bundled Node CLI and API client. Use when user needs to manage RAGFlow datasets, documents, uploads, parsing, chunks, retrieval, chat assistants, chat sessions, agents, agent sessions, embedded website access, metadata filters, model discovery, system settings, or API diagnostics. Also use when the user asks about knowledge bases, document chunking, vector retrieval, embed code, or RAG workflows and the current context explicitly involves a RAGFlow server or deployment.
-version: 1.2.3
+description: Operate RAGFlow v0.25.2 deployments through the bundled Node CLI and API client. Use when user needs to manage RAGFlow datasets, documents, uploads, parsing, chunks, retrieval, chat assistants, chat sessions, agents, agent sessions, embedded website access, metadata filters, model discovery, system settings, or API diagnostics. Also use when the user asks about knowledge bases, document chunking, vector retrieval, embed code, or RAG workflows and the current context explicitly involves a RAGFlow server or deployment.
+version: 1.2.5
 metadata:
   openclaw:
     requires:
@@ -16,13 +16,12 @@ metadata:
 
 # RAGFlow Skill
 
-Use this skill to operate RAGFlow through `scripts/ragflow.js`. The CLI wraps the full v0.25.1 REST API - every action goes through `node {baseDir}/scripts/ragflow.js <command> [options]`. Prefer `--json` on any command when the output will be parsed or chained into another step.
+Use this skill to operate RAGFlow through `scripts/ragflow.js`. The CLI wraps the full v0.25.2 REST API - every action goes through `node {baseDir}/scripts/ragflow.js <command> [options]`. Prefer `--json` on any command when the output will be parsed or chained into another step.
 
 ## Requirements
 
 - Set `RAGFLOW_URL` and `RAGFLOW_API_KEY` in the environment or this skill's `.env`.
 - Use Node.js to run bundled scripts.
-- Set `RAGFLOW_WEB_TOKEN` only when `list-models` needs a web-session token for `/v1/llm/my_llms`.
 - Tune chunk deletion retries only when needed with `RAGFLOW_DELETE_CHUNK_RETRIES` and `RAGFLOW_DELETE_CHUNK_RETRY_DELAY_MS`.
 - Tune the chunk deletion diagnostic script only when needed with `RAGFLOW_REPRO_TIMEOUT_MS`, `RAGFLOW_REPRO_DELETE_RETRIES`, `RAGFLOW_REPRO_DELETE_RETRY_DELAY_MS`, and `RAGFLOW_REPRO_EMBEDDING_MODEL`.
 
@@ -89,16 +88,16 @@ The first step in any RAGFlow operation is resolving the target resource ID. Aft
 - **Destructive deletes need confirmation.** RAGFlow deletes are immediate and irreversible. Confirm before running `delete-datasets`, `delete-documents`, `delete-chunks`, `delete-chats`, `delete-sessions`, or `delete-agents` - unless the resource is a temporary artifact you created in the same workflow and the user asked you to clean up.
 - **Upload and parsing are separate steps.** RAGFlow does not auto-parse on upload because different documents may need different chunk methods. Upload first, adjust config if needed, then start parsing explicitly.
 - **Preserve user-uploaded filenames.** RAGFlow stores the multipart `filename` as the document name. If a user attachment is materialized as a task ID or temporary path, pass the original filename inline: `upload-documents --files <original-name>=<path>`.
-- **Use v0.25.1 route shapes from the references.** The reference docs match the current skill.
+- **Use v0.25.2 route shapes from the references.** The reference docs match the current skill.
 - **Tenant model identifiers use the `model@provider` format.** When creating datasets with `--embedding-model` or chat assistants with `--llm-id`, the server expects the full identifier, for example `text-embedding-v4@Tongyi-Qianwen` or `qwen-turbo@Tongyi-Qianwen`, not a numeric model row ID. Use `list-models` to discover model names and providers.
-- **Chat sessions use the v0.25.1 route.** `chat-session` posts to `/api/v1/chat/completions` with `chat_id` and `session_id` in the body.
+- **Chat sessions use the v0.25.2 route.** `chat-session` posts to `/api/v1/chat/completions` with `chat_id` and `session_id` in the body.
 - **Embedded access uses beta tokens and embedded sessions.** `embed-code`, `embed-info`, `embed-chat`, and `embed-agent-chat` use the shared-site `/api/v1/chatbots/*` or `/api/v1/agentbots/*` routes. If `--beta` is not supplied, the CLI reuses the first `/api/v1/system/tokens` item with `beta` or creates one. For chatbot completions, the CLI auto-bootstraps `session_id` unless `--session` is supplied.
 - **Treat embed auth material as sensitive output.** System tokens, `beta` values, and embed URLs or iframe HTML containing `auth=` are operational secrets. Use them when needed for the task, but do not print the full values back to the user unless the user explicitly asks for them.
 - **Embed URL generation assumes a public RAGFlow origin.** `embed-code` uses `--origin` when supplied; otherwise it falls back to `RAGFLOW_URL`. When the API base URL and the public web origin differ, pass `--origin` explicitly so the generated iframe points at the actual shared-site page.
 - **Prefer the current Agent DSL schema from `AGENT_GUIDE.md`.** In practice, hand-authored agents should include `components`, `history`, `path`, `retrieval`, `variables`, `globals`, and `graph`, plus `graph.nodes[].data.name` for every component-backed node.
-- **Agent chat uses the 0.25.1 route.** `agent-chat` posts to `/api/v1/agents/chat/completion` with `agent_id` in the body.
+- **Agent chat uses the v0.25.2 route.** `agent-chat` posts to `/api/v1/agents/chat/completions` with `agent_id` in the body.
 - **Iteration agents should iterate over a real list output.** When an upstream `Agent` produces loop items, prefer an object-shaped structured output such as `{"items":[...]}` and point `Iteration.params.items_ref` at `agent:0@structured.items`. Start from `references/examples/agents/04-iteration-agent.json`.
-- **Chunk deletion may need retries.** Some v0.25.1 servers can return `rm_chunk deleted chunks 0, expect N` due to document-store refresh lag even when the chunk exists. The CLI handles this automatically - it retries after confirming the chunk is still visible via exact ID lookup. If retries still fail, run `scripts/repro-delete-chunks.js` for a clean diagnosis.
+- **Chunk deletion may need retries.** Some servers can return `rm_chunk deleted chunks 0, expect N` due to document-store refresh lag even when the chunk exists. The CLI handles this automatically - it retries after confirming the chunk is still visible via exact ID lookup. If retries still fail, run `scripts/repro-delete-chunks.js` for a clean diagnosis.
 
 ## Output Format
 

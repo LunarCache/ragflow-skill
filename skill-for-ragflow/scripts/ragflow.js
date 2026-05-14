@@ -1045,11 +1045,11 @@ async function listModels(opts) {
     result = await client.listModels(params);
   } catch (err) {
     if (err.status === 401 || err.code === 401 || /unauthor/i.test(err.message)) {
-      err.message = `${err.message}. Set RAGFLOW_WEB_TOKEN from a web login session for /v1/llm/my_llms.`;
+      err.message = `${err.message}. Verify RAGFLOW_API_KEY is valid for /v1/llm/my_llms.`;
     }
     throw err;
   }
-  
+
   // Normalize and group models
   const factories = result || {};
   const groups = [];

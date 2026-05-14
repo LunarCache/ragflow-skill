@@ -20,8 +20,8 @@
 | `embed-code` or `embed-chat` returns Unauthorized | The embedded shared-site routes authenticate with the system token `beta`, not `RAGFLOW_API_KEY` | Let the CLI auto-create/reuse a token, or pass a valid `--beta` from `/api/v1/system/tokens` |
 | `embed-code` creates a new token unexpectedly | No existing system token had a `beta` value | This matches RAGFlow's embed UI behavior; use `list-system-tokens` to inspect current tokens |
 | `embed-chat` returns only the prologue or an empty answer | The embedded chatbot route was called without `session_id`; RAGFlow uses that first call to create the iframe session | Use the CLI `embed-chat` command, which bootstraps `session_id` automatically, or call `ensureEmbeddedChatSession()` before `embeddedChat()` in API code |
-| `list-models` returns Unauthorized | The `/v1/llm/my_llms` endpoint needs a web-session token in some deployments | Set `RAGFLOW_WEB_TOKEN` |
-| `update-document` gets Method Not Allowed | The server does not match the v0.25.1 route shape expected by this skill | Use a v0.25.1-compatible server; document updates are sent with `PATCH` |
+| `list-models` returns Unauthorized | The `/v1/llm/my_llms` endpoint rejected the API key | Verify `RAGFLOW_API_KEY` is valid and has not expired |
+| `update-document` gets Method Not Allowed | The server does not match the v0.25.2 route shape expected by this skill | Use a v0.25.2-compatible server; document updates are sent with `PATCH` |
 | `Invalid URL` | `RAGFLOW_URL` is empty or malformed | Use a server root such as `http://localhost:9380`; bare hosts like `localhost:9380` are normalized to `http://...` |
 | Connection refused | `RAGFLOW_URL` is wrong or the server is down | Verify the URL and that the RAGFlow server is running |
 
