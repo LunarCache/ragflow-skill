@@ -334,7 +334,7 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
       args: ["list-datasets", "--page", "1", "--page-size", "2", "--name", "Docs", "--id", "ds1", "--json"],
       expect: { method: "GET", path: "/api/v1/datasets", query: { page: 1, page_size: 2, name: "Docs", id: "ds1" } },
     },
-    { args: ["get-dataset", "--id", "ds1", "--json"], expect: { method: "GET", path: "/api/v1/datasets", query: { id: "ds1" } } },
+    { args: ["get-dataset", "--id", "ds1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1" } },
     { args: ["update-dataset", "--id", "ds1", "--name", "Docs2", "--json"], expect: { method: "PUT", path: "/api/v1/datasets/ds1", body: { name: "Docs2" } } },
     { args: ["delete-datasets", "--ids", "ds1", "ds2", "--json"], expect: { method: "DELETE", path: "/api/v1/datasets", body: { ids: ["ds1", "ds2"] } } },
     { args: ["upload-documents", "--dataset", "ds1", "--files", fileA, fileB, "--json"], expect: { method: "POST", path: "/api/v1/datasets/ds1/documents" }, multipart: true },
@@ -426,6 +426,14 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
     { args: ["embed-chat", "--chat", "chat1", "--beta", "beta-token", "--question", "Hello", "--conversation-id", "msg1", "--session", "sess1", "--quote", "--stream", "false", "--json"], expect: { method: "POST", path: "/api/v1/chatbots/chat1/completions", auth: "beta-token", body: { question: "Hello", conversation_id: "msg1", session_id: "sess1", quote: true, stream: false } } },
     { args: ["embed-agent-chat", "--agent", "agent1", "--beta", "beta-token", "--question", "Hello", "--session", "asess1", "--inputs", "{\"city\":{\"value\":\"Shanghai\"}}", "--user-id", "user1", "--published", "--stream", "false", "--json"], expect: { method: "POST", path: "/api/v1/agentbots/agent1/completions", auth: "beta-token", body: { id: "agent1", query: "Hello", session_id: "asess1", inputs: { city: { value: "Shanghai" } }, user_id: "user1", release: "true", stream: false } } },
     { args: ["list-models", "--include-details", "--group-by", "factory", "--all", "--json"], expect: { method: "GET", path: "/v1/llm/my_llms", query: { include_details: true } } },
+    { args: ["download-document", "--dataset", "ds1", "--id", "doc1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/documents/doc1" } },
+    { args: ["list-agent-tags", "--json"], expect: { method: "GET", path: "/api/v1/agents/tags" } },
+    { args: ["update-agent-tags", "--id", "agent1", "--tags", "ml", "rag", "--json"], expect: { method: "PUT", path: "/api/v1/agents/agent1/tags", body: { tags: "ml,rag" } } },
+    { args: ["list-agents", "--tags", "ml", "--json"], expect: { method: "GET", path: "/api/v1/agents", query: { tags: "ml" } } },
+    { args: ["list-connectors", "--dataset", "ds1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/connectors" } },
+    { args: ["create-connector", "--dataset", "ds1", "--config", "{\"type\":\"web\"}", "--json"], expect: { method: "POST", path: "/api/v1/datasets/ds1/connectors", body: { type: "web" } } },
+    { args: ["run-raptor", "--dataset", "ds1", "--json"], expect: { method: "POST", path: "/api/v1/datasets/ds1/run_raptor" } },
+    { args: ["trace-raptor", "--dataset", "ds1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/trace_raptor" } },
   ];
 
   try {

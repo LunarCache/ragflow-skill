@@ -136,7 +136,7 @@ function parseArgs(argv) {
     s: "similarity",
     w: "vectorWeight",
   };
-  const multiKeys = new Set(["files", "ids", "docIds", "chunkIds", "datasets", "suffix", "types", "run"]);
+  const multiKeys = new Set(["files", "ids", "docIds", "chunkIds", "datasets", "suffix", "types", "run", "tags"]);
   while (i < argv.length) {
     if (argv[i].startsWith("-") && argv[i] !== "-") {
       const isLong = argv[i].startsWith("--");
@@ -520,6 +520,16 @@ async function updateDocument(opts) {
   json(result);
 }
 
+async function downloadDocument(opts) {
+  const client = createClient();
+  const dataset = requireOpt(opts, "dataset");
+  const id = requireOpt(opts, "id");
+  info(`Downloading document ${id}...`);
+  const result = await client.downloadDocument(dataset, id);
+  ok(`Document downloaded`);
+  json(result);
+}
+
 // ── Parsing ──
 
 async function startParsing(opts) {
@@ -661,6 +671,70 @@ async function retrieve(opts) {
   const result = await client.retrieve(params);
   const count = Array.isArray(result) ? result.length : 0;
   ok(`Found ${count} result(s)`);
+  json(result);
+}
+
+// ── Connector ──
+
+async function listConnectors(opts) {
+  const client = createClient();
+  const dataset = requireOpt(opts, "dataset");
+  const params = buildParams(opts, [
+    ["page", "page", Number],
+    ["pageSize", "page_size", Number],
+  ]);
+  info(`Fetching connectors for dataset ${dataset}...`);
+  const result = await client.listConnectors(dataset, params);
+  if (Array.isArray(result) && result.length === 0) {
+    warn("No connectors found");
+    if (!outputMode.jsonOnly) return;
+  } else {
+    ok(`Found ${Array.isArray(result) ? result.length : "connectors"}`);
+  }
+  json(result);
+}
+
+async function createConnector(opts) {
+  const client = createClient();
+  const dataset = requireOpt(opts, "dataset");
+  const config = requireOpt(opts, "config");
+  const data = jsonOption(config, "--config");
+  info(`Creating connector for dataset ${dataset}...`);
+  const result = await client.createConnector(dataset, data);
+  ok(`Connector created: ${result.id}`);
+  json(result);
+}
+
+async function getConnector(opts) {
+  const client = createClient();
+  const id = requireOpt(opts, "id");
+  info(`Fetching connector ${id}...`);
+  const result = await client.getConnector(id);
+  ok(`Connector: ${result.name}`);
+  json(result);
+}
+
+async function updateConnector(opts) {
+  const client = createClient();
+  const id = requireOpt(opts, "id");
+  const config = opts.config;
+  const data = {};
+  if (config) {
+    Object.assign(data, typeof config === "string" ? JSON.parse(fs.readFileSync(config, "utf8")) : config);
+  }
+  if (opts.name) data.name = opts.name;
+  info(`Updating connector ${id}...`);
+  const result = await client.updateConnector(id, data);
+  ok("Connector updated");
+  json(result);
+}
+
+async function deleteConnector(opts) {
+  const client = createClient();
+  const id = requireOpt(opts, "id");
+  info(`Deleting connector ${id}...`);
+  const result = await client.deleteConnector(id);
+  ok("Connector deleted");
   json(result);
 }
 
@@ -828,6 +902,7 @@ async function listAgents(opts) {
     ["name", "title"],
     ["title", "title"],
     ["id", "id"],
+    ["tags", "tags"],
   ]);
   const result = await client.listAgents(params);
   if (Array.isArray(result) && result.length === 0) {
@@ -836,6 +911,30 @@ async function listAgents(opts) {
   } else {
     ok(`Found ${Array.isArray(result) ? result.length : "agents"}`);
   }
+  json(result);
+}
+
+async function listAgentTags(opts) {
+  const client = createClient();
+  info("Fetching agent tags...");
+  const result = await client.listAgentTags();
+  if (Array.isArray(result) && result.length === 0) {
+    warn("No agent tags found");
+    if (!outputMode.jsonOnly) return;
+  } else {
+    ok(`Found ${Array.isArray(result) ? result.length : "tags"}`);
+  }
+  json(result);
+}
+
+async function updateAgentTags(opts) {
+  const client = createClient();
+  const id = requireOpt(opts, "id");
+  const tags = requireOpt(opts, "tags");
+  const tagStr = Array.isArray(tags) ? tags.join(",") : tags;
+  info(`Updating tags for agent ${id}...`);
+  const result = await client.updateAgentTags(id, tagStr);
+  ok("Agent tags updated");
   json(result);
 }
 
@@ -1098,6 +1197,26 @@ async function listModels(opts) {
   json({ groups, total: totalModels });
 }
 
+// ── RAPTOR ──
+
+async function runRaptor(opts) {
+  const client = createClient();
+  const dataset = requireOpt(opts, "dataset");
+  info(`Starting RAPTOR processing for dataset ${dataset}...`);
+  const result = await client.runRaptor(dataset);
+  ok(`RAPTOR started: ${result.task_id || "task"}`);
+  json(result);
+}
+
+async function traceRaptor(opts) {
+  const client = createClient();
+  const dataset = requireOpt(opts, "dataset");
+  info(`Tracing RAPTOR progress for dataset ${dataset}...`);
+  const result = await client.traceRaptor(dataset);
+  ok(`RAPTOR status: ${result.status || "unknown"}`);
+  json(result);
+}
+
 // ── Command registry ──
 
 async function metadataSummary(opts) {
@@ -1147,6 +1266,7 @@ const COMMANDS = {
   "get-document":      { fn: getDocument,      group: "Document",  desc: "Get document details" },
   "update-document":   { fn: updateDocument,   group: "Document",  desc: "Update a document" },
   "delete-documents":  { fn: deleteDocuments,  group: "Document",  desc: "Delete documents" },
+  "download-document": { fn: downloadDocument, group: "Document", desc: "Download a document" },
   // Parsing
   "start-parsing":     { fn: startParsing,     group: "Parsing",   desc: "Start document parsing" },
   "stop-parsing":      { fn: stopParsing,      group: "Parsing",   desc: "Stop document parsing" },
@@ -1158,6 +1278,15 @@ const COMMANDS = {
   "delete-chunks":     { fn: deleteChunks,     group: "Chunk",     desc: "Delete chunks" },
   // Retrieval
   "retrieve":          { fn: retrieve,         group: "Retrieval", desc: "Retrieve from datasets" },
+  // Connector
+  "list-connectors":   { fn: listConnectors,   group: "Connector", desc: "List connectors" },
+  "create-connector":  { fn: createConnector,  group: "Connector", desc: "Create a connector" },
+  "get-connector":     { fn: getConnector,     group: "Connector", desc: "Get connector details" },
+  "update-connector":  { fn: updateConnector,  group: "Connector", desc: "Update a connector" },
+  "delete-connector":  { fn: deleteConnector,  group: "Connector", desc: "Delete a connector" },
+  // RAPTOR
+  "run-raptor":        { fn: runRaptor,        group: "RAPTOR",     desc: "Start RAPTOR processing" },
+  "trace-raptor":      { fn: traceRaptor,      group: "RAPTOR",     desc: "Trace RAPTOR progress" },
   // Chat Assistant
   "list-chats":        { fn: listChatAssistants, group: "Chat",    desc: "List chat assistants" },
   "create-chat":       { fn: createChatAssistant, group: "Chat",   desc: "Create a chat assistant" },
@@ -1173,15 +1302,16 @@ const COMMANDS = {
   "chat":              { fn: chat,             group: "Chat",      desc: "Chat with an assistant" },
   "chat-session":      { fn: chatSession,      group: "Chat",      desc: "Chat with a session" },
   // Agent
-  "list-agents":       { fn: listAgents,        group: "Agent",     desc: "List agents" },
+  "list-agents":       { fn: listAgents,        group: "Agent",     desc: "List agents", args: [], opts: ["page", "pageSize", "id", "name", "tags", "json"] },
   "create-agent":      { fn: createAgent,       group: "Agent",     desc: "Create an agent" },
   "get-agent":         { fn: getAgent,          group: "Agent",     desc: "Get agent details" },
   "update-agent":      { fn: updateAgent,       group: "Agent",     desc: "Update an agent" },
-  "delete-agents":     { fn: deleteAgents,      group: "Agent",     desc: "Delete agents" },
-  // Agent Session
+  "delete-agents":      { fn: deleteAgents,       group: "Agent",     desc: "Delete agents" },
   "list-agent-sessions":  { fn: listAgentSessions,  group: "Agent", desc: "List agent sessions" },
   "create-agent-session": { fn: createAgentSession, group: "Agent", desc: "Create an agent session" },
   "delete-agent-sessions": { fn: deleteAgentSessions, group: "Agent", desc: "Delete agent sessions" },
+  "list-agent-tags":   { fn: listAgentTags,     group: "Agent",     desc: "List agent tags" },
+  "update-agent-tags": { fn: updateAgentTags,   group: "Agent",     desc: "Update agent tags" },
   // Agent Chat
   "agent-chat":        { fn: agentChat,        group: "Agent",     desc: "Chat with an agent" },
   // Embedded website access
