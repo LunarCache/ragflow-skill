@@ -59,7 +59,7 @@ node {baseDir}/scripts/ragflow.js update-dataset --id <id> --name "New Name"
 node {baseDir}/scripts/ragflow.js delete-datasets --ids <id1> <id2>
 ```
 
-When you provide `--embedding-model` to a real v0.25.2 server, use the tenant model identifier format `<model_name>@<provider>`, for example `text-embedding-v4@Tongyi-Qianwen`. Use `list-models` to discover available model/provider pairs.
+When you provide `--embedding-model` to a real v0.25.5 server, use the tenant model identifier format `<model_name>@<provider>`, for example `text-embedding-v4@Tongyi-Qianwen`. Use `list-models` to discover available model/provider pairs.
 
 Typical flow:
 
@@ -68,6 +68,25 @@ Typical flow:
 3. `update-dataset` if metadata or chunk method needs adjustment
 4. `delete-datasets` only after explicit confirmation
 
+### `list-connectors`
+
+List connectors for a dataset.
+
+**Options**: `--dataset`, `--page`, `--pageSize`, `--json`
+
+### `create-connector`
+
+Create a connector.
+
+**Options**: `--dataset`, `--config` (JSON file), `--json`
+
+**Example**: `node ragflow.js create-connector --dataset <id> --config @connector.json --json`
+
+### `get-connector`, `update-connector`, `delete-connector`
+
+Standard CRUD operations.
+
+**Options**: `--id`, `--config` (for update), `--json`
 ## Document Ingestion
 
 Use this section when the user needs to get files into a dataset or inspect document-level metadata.
@@ -83,7 +102,7 @@ node {baseDir}/scripts/ragflow.js metadata-summary --dataset <id> --doc-ids <doc
 node {baseDir}/scripts/ragflow.js delete-documents --dataset <id> --ids <doc_id1>
 ```
 
-`update-document` follows the current v0.25.2 RAGFlow route and sends `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. It accepts `name`, `parser_config`, `chunk_method`, `enabled`, and `meta_fields`.
+`update-document` follows the current v0.25.5 RAGFlow route and sends `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. It accepts `name`, `parser_config`, `chunk_method`, `enabled`, and `meta_fields`.
 
 `list-documents` supports `metadata`, `metadata_condition`, `return_empty_metadata`, `orderby`, `desc`, `suffix`, `types`, and `run`.
 
@@ -165,6 +184,17 @@ If a real server still returns `rm_chunk deleted chunks 0, expect 1` after retri
 | `picture` | Image OCR |
 | `one` | Whole document as one chunk |
 
+### `run-raptor`
+
+Start RAPTOR processing for a dataset.
+
+**Options**: `--dataset`, `--json`
+
+### `trace-raptor`
+
+Check RAPTOR processing status.
+
+**Options**: `--dataset`, `--json`
 ## Information Retrieval
 
 Use this section when the user wants retrieval results directly instead of creating a chat assistant or agent.
@@ -254,6 +284,11 @@ node {baseDir}/scripts/ragflow.js update-agent --id <agent_id> --title "New Name
 node {baseDir}/scripts/ragflow.js delete-agents --ids <id1> <id2>
 ```
 
+**Options for `list-agents`**:
+
+| Option | Description |
+|---|---|
+| `--tags` | Filter agents by tags (comma-separated) |
 `agent-chat` uses `POST /api/v1/agents/chat/completion` with `agent_id` in the JSON body.
 
 Agents require a DSL workflow definition. A minimal current-schema DSL:
@@ -339,6 +374,21 @@ The full practical guide and additional minimal examples live in:
 
 For iteration flows, prefer the `04-iteration-agent.json` pattern where an upstream `Agent` emits an object with an `items` array and `Iteration.params.items_ref` points to `agent:0@structured.items`.
 
+### `list-agent-tags`
+
+List all agent tags with usage counts.
+
+**Options**: `--json`
+
+**Example**: `node ragflow.js list-agent-tags --json`
+
+### `update-agent-tags`
+
+Update tags for an agent.
+
+**Options**: `--id`, `--tags` (comma-separated), `--json`
+
+**Example**: `node ragflow.js update-agent-tags --id <agent_id> --tags ml,rag --json`
 ### Agent session management
 
 ```bash
@@ -431,7 +481,7 @@ node {baseDir}/scripts/ragflow.js list-models --all
 
 This is usually the first stop when the user is troubleshooting model availability or deciding which model to use downstream.
 
-RAGFlow v0.25.2 exposes model discovery at `/v1/llm/my_llms`. Authentication uses `RAGFLOW_API_KEY`.
+RAGFlow v0.25.5 exposes model discovery at `/v1/llm/my_llms`. Authentication uses `RAGFLOW_API_KEY`.
 
 For create operations, use model names plus provider suffixes such as `qwen-turbo@Tongyi-Qianwen` or `text-embedding-v4@Tongyi-Qianwen`. If `list-models --include-details` shows numeric `id` fields, treat them as server row IDs, not values for `--llm-id` or `--embedding-model`.
 

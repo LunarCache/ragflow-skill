@@ -166,6 +166,38 @@ When reporting embedded-site results:
 **Created:** 2024-01-15
 ```
 
+
+**Tags list:**
+```markdown
+**Document Tags** (4 total)
+
+- internal-only
+- q2-report
+- approved
+- draft
+```
+
+**Connectors list:**
+```markdown
+**Connectors** (2 total)
+
+| Provider | Name | Status | Type |
+|----------|------|--------|------|
+| GitHub   | Main Repo | OK | source |
+| Notion   | Wiki | FAIL | source |
+```
+
+**RAPTOR status:**
+```markdown
+**RAPTOR Processing**
+
+| Document | Level | Chunks | Status |
+|----------|-------|--------|--------|
+| manual.pdf | 1 | 45 | DONE |
+| manual.pdf | 2 | 12 | RUNNING |
+| manual.pdf | 3 | 0 | UNSTART |
+```
+
 ## Error Response Format
 
 **API errors:**
@@ -190,4 +222,35 @@ Check the RAGFLOW_URL environment variable and server availability
 
 Missing required parameter: `--dataset`
 Run with `--help` for usage information
+```
+
+**Tags list:**
+```markdown
+**Document Tags** (4 total)
+
+- internal-only
+- q2-report
+- approved
+- draft
+```
+
+**Connectors list:**
+```markdown
+**Connectors** (2 total)
+
+| Provider | Name | Status | Type |
+|----------|------|--------|------|
+| GitHub   | Main Repo | OK | source |
+| Notion   | Wiki | FAIL | source |
+```
+
+**RAPTOR status:**
+```markdown
+**RAPTOR Processing**
+
+| Document | Level | Chunks | Status |
+|----------|-------|--------|--------|
+| manual.pdf | 1 | 45 | DONE |
+| manual.pdf | 2 | 12 | RUNNING |
+| manual.pdf | 3 | 0 | UNSTART |
 ```

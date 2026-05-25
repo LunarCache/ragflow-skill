@@ -1,10 +1,10 @@
 # RAGFlow Skill
 
-A Codex/OpenCode skill for operating [RAGFlow](https://github.com/infiniflow/ragflow) v0.25.2 through a bundled Node.js CLI and API client.
+A Codex/OpenCode skill for operating [RAGFlow](https://github.com/infiniflow/ragflow) v0.25.5 through a bundled Node.js CLI and API client.
 
 ## Features
 
-- **Full RAGFlow v0.25.2 API coverage** - datasets, documents, parsing, chunks, retrieval, chat assistants, agents, embedded site access, model discovery
+- **Full RAGFlow v0.25.5 API coverage** - datasets, documents (tags, RAPTOR), parsing, chunks, retrieval, chat assistants, agents (structured output), embedded site access, model discovery, and connectors
 - **Zero dependencies** - pure Node.js, no npm install required
 - **JSON-first output** - `--json` flag for machine-readable output suitable for pipelines
 - **Robust error handling** - automatic retries for transient failures, structured error envelopes
@@ -199,7 +199,7 @@ const agentAnswer = await client.agentChat(agentId, agentSession.id, "Summarize 
 ## Requirements
 
 - **Node.js** 18+ (uses built-in `node:test` and `fetch`)
-- **RAGFlow** v0.25.2 server
+- **RAGFlow** v0.25.5 server
 
 ## License
 

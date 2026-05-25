@@ -2,7 +2,7 @@
 
 Read this file only when you need to author, debug, or review a RAGFlow Agent/Canvas DSL. For CLI syntax, read [COMMANDS.md](COMMANDS.md). For SDK request and response shapes, read [API.md](API.md). For failures and recovery steps, read [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
-This guide distills the current RAGFlow v0.25.2 agent behavior into practical schema rules, minimal examples, and failure patterns you can use directly.
+This guide distills the current RAGFlow v0.25.5 agent behavior into practical schema rules, minimal examples, and failure patterns you can use directly.
 
 ## Contents
 
@@ -204,6 +204,7 @@ Most variable failures come from ids, output names, or top-level fields not lini
 - `top_k`
 
 If you want an explicit retrieval stage on the canvas, start from `02-retrieval-message.json`. If you want retrieval as an LLM tool, start from `03-tool-agent.json`.
+As of v0.25.5, metadata filters are correctly reused across canvas executions even when node state is modified, fixing an issue where filters could be lost during iterative debugging.
 
 ### Agent
 
@@ -223,6 +224,7 @@ If you want an explicit retrieval stage on the canvas, start from `02-retrieval-
 ```
 
 Do not model tools here as separate top-level `Tool` nodes. For this skill, prefer the embedded structure shown in `03-tool-agent.json`.
+Starting with v0.25.5, `Agent` nodes can emit structured JSON output directly into the `structured` field when a JSON schema is provided, allowing downstream nodes to access fields without manual string parsing.
 
 ### Iteration / IterationItem
 

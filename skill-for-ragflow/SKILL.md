@@ -1,7 +1,7 @@
 ---
 name: skill-for-ragflow
-description: Operate RAGFlow v0.25.2 deployments through the bundled Node CLI and API client. Use when user needs to manage RAGFlow datasets, documents, uploads, parsing, chunks, retrieval, chat assistants, chat sessions, agents, agent sessions, embedded website access, metadata filters, model discovery, system settings, or API diagnostics. Also use when the user asks about knowledge bases, document chunking, vector retrieval, embed code, or RAG workflows and the current context explicitly involves a RAGFlow server or deployment.
-version: 1.2.6
+description: Operate RAGFlow v0.25.5 deployments through the bundled Node CLI and API client. Use when user needs to manage RAGFlow datasets, documents, uploads, parsing, chunks, retrieval, chat assistants, chat sessions, agents, agent sessions, embedded website access, metadata filters, model discovery, system settings, or API diagnostics. Also use when the user asks about knowledge bases, document chunking, vector retrieval, embed code, or RAG workflows and the current context explicitly involves a RAGFlow server or deployment.
+version: 1.3.0
 metadata:
   openclaw:
     requires:
@@ -16,7 +16,7 @@ metadata:
 
 # RAGFlow Skill
 
-Use this skill to operate RAGFlow through `scripts/ragflow.js`. The CLI wraps the full v0.25.2 REST API - every action goes through `node {baseDir}/scripts/ragflow.js <command> [options]`. Prefer `--json` on any command when the output will be parsed or chained into another step.
+Use this skill to operate RAGFlow through `scripts/ragflow.js`. The CLI wraps the full v0.25.5 REST API - every action goes through `node {baseDir}/scripts/ragflow.js <command> [options]`. Prefer `--json` on any command when the output will be parsed or chained into another step.
 
 ## Requirements
 
@@ -42,7 +42,10 @@ Use this skill to operate RAGFlow through `scripts/ragflow.js`. The CLI wraps th
 | **Chat assistant** | `create-chat`, `list-chats`, `get-chat`, `update-chat`, `patch-chat`, `delete-chats` |
 | **Chat sessions** | `create-session`, `list-sessions`, `delete-sessions`, `chat`, `chat-session` |
 | **Agent** | `create-agent`, `list-agents`, `get-agent`, `update-agent`, `delete-agents` |
+| **Agent Tags** | `list-agent-tags`, `update-agent-tags` |
 | **Agent sessions** | `create-agent-session`, `list-agent-sessions`, `delete-agent-sessions`, `agent-chat` |
+| **Connector** | `list-connectors`, `create-connector`, `get-connector`, `update-connector`, `delete-connector` |
+| **RAPTOR** | `run-raptor`, `trace-raptor` |
 | **Embedded website access** | `list-system-tokens`, `create-system-token`, `delete-system-token`, `embed-code`, `embed-info`, `embed-chat`, `embed-agent-chat` |
 | **Model discovery** | `list-models` |
 | **System** | `system-version`, `get-log-levels`, `set-log-level` |
@@ -69,6 +72,21 @@ Use this skill to operate RAGFlow through `scripts/ragflow.js`. The CLI wraps th
 2. `create-agent-session --agent <agent_id>`
 3. `agent-chat --agent <agent_id> --session <session_id> --question "Hello"`
 
+### Agent tags workflow
+
+1. `list-agent-tags --agent <agent_id>`
+2. `update-agent-tags --agent <agent_id> --tags "Tag1,Tag2"`
+
+### Connector workflow
+
+1. `create-connector --name "GitHub" --type github --token <token>`
+2. `list-connectors`
+3. `get-connector --id <id>`
+
+### RAPTOR workflow
+
+1. `run-raptor --dataset <id> --method raptor`
+2. `trace-raptor --id <id>`
 `agent-chat` is streaming by default. Use `--stream false` when you need the final JSON result in one response.
 
 ### Embedded website access
@@ -94,14 +112,16 @@ The first step in any RAGFlow operation is resolving the target resource ID. Aft
 - **Destructive deletes need confirmation.** RAGFlow deletes are immediate and irreversible. Confirm before running `delete-datasets`, `delete-documents`, `delete-chunks`, `delete-chats`, `delete-sessions`, or `delete-agents` - unless the resource is a temporary artifact you created in the same workflow and the user asked you to clean up.
 - **Upload and parsing are separate steps.** RAGFlow does not auto-parse on upload because different documents may need different chunk methods. Upload first, adjust config if needed, then start parsing explicitly.
 - **Preserve user-uploaded filenames.** RAGFlow stores the multipart `filename` as the document name. If a user attachment is materialized as a task ID or temporary path, pass the original filename inline: `upload-documents --files <original-name>=<path>`.
-- **Use v0.25.2 route shapes from the references.** The reference docs match the current skill.
+- **Use v0.25.5 route shapes from the references.** The reference docs match the current skill.
 - **Tenant model identifiers use the `model@provider` format.** When creating datasets with `--embedding-model` or chat assistants with `--llm-id`, the server expects the full identifier, for example `text-embedding-v4@Tongyi-Qianwen` or `qwen-turbo@Tongyi-Qianwen`, not a numeric model row ID. Use `list-models` to discover model names and providers.
-- **Chat sessions use the v0.25.2 route.** `chat-session` posts to `/api/v1/chat/completions` with `chat_id` and `session_id` in the body.
+- **Chat sessions use the v0.25.5 route.** `chat-session` posts to `/api/v1/chat/completions` with `chat_id` and `session_id` in the body.
 - **Embedded access uses beta tokens and embedded sessions.** `embed-code`, `embed-info`, `embed-chat`, and `embed-agent-chat` use the shared-site `/api/v1/chatbots/*` or `/api/v1/agentbots/*` routes. If `--beta` is not supplied, the CLI reuses the first `/api/v1/system/tokens` item with `beta` or creates one. For chatbot completions, the CLI auto-bootstraps `session_id` unless `--session` is supplied.
 - **Treat embed auth material as sensitive output.** System tokens, `beta` values, and embed URLs or iframe HTML containing `auth=` are operational secrets. Use them when needed for the task, but do not print the full values back to the user unless the user explicitly asks for them.
 - **Embed URL generation assumes a public RAGFlow origin.** `embed-code` uses `--origin` when supplied; otherwise it falls back to `RAGFLOW_URL`. When the API base URL and the public web origin differ, pass `--origin` explicitly so the generated iframe points at the actual shared-site page.
 - **Prefer the current Agent DSL schema from `AGENT_GUIDE.md`.** In practice, hand-authored agents should include `components`, `history`, `path`, `retrieval`, `variables`, `globals`, and `graph`, plus `graph.nodes[].data.name` for every component-backed node.
-- **Agent chat uses the v0.25.2 route.** `agent-chat` posts to `/api/v1/agents/chat/completions` with `agent_id` in the body.
+- **Agent tags must be comma-separated strings.** When updating agent tags, pass them as a single string of comma-separated values.
+- **Connectors require valid auth tokens.** Ensure the target service token is valid before creating a connector.
+- **Agent chat uses the v0.25.5 route.** `agent-chat` posts to `/api/v1/agents/chat/completions` with `agent_id` in the body.
 - **Iteration agents should iterate over a real list output.** When an upstream `Agent` produces loop items, prefer an object-shaped structured output such as `{"items":[...]}` and point `Iteration.params.items_ref` at `agent:0@structured.items`. Start from `references/examples/agents/04-iteration-agent.json`.
 - **Chunk deletion may need retries.** Some servers can return `rm_chunk deleted chunks 0, expect N` due to document-store refresh lag even when the chunk exists. The CLI handles this automatically - it retries after confirming the chunk is still visible via exact ID lookup. If retries still fail, run `scripts/repro-delete-chunks.js` for a clean diagnosis.
 

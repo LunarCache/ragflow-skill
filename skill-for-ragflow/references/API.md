@@ -5,13 +5,17 @@
 - [Setup](#setup)
 - [Dataset](#dataset)
 - [Document](#document)
+- [Document Download](#document-download)
 - [Parsing](#parsing)
 - [Chunk](#chunk)
 - [Retrieval](#retrieval)
+- [Connector](#connector)
+- [RAPTOR](#raptor)
 - [Chat Assistant](#chat-assistant)
 - [Session](#session)
 - [Chat Conversation](#chat-conversation)
 - [Agent](#agent)
+- [Agent Tags](#agent-tags)
 - [Agent Session](#agent-session)
 - [Agent Chat](#agent-chat)
 - [Embedded Website Access](#embedded-website-access)
@@ -35,8 +39,9 @@ const client = createClient();
 // List datasets (supports pagination: page, page_size, id, name)
 const datasets = await client.listDatasets({ page: 1, page_size: 10 });
 
-// Get a single dataset by ID
+// Get a single dataset by ID (enriched with total_size and connectors)
 const dataset = await client.getDataset("<dataset_id>");
+// Returns: { id: "...", name: "...", total_size: 1024, connectors: [...], ... }
 
 // Create a dataset
 const dataset = await client.createDataset({
@@ -81,7 +86,7 @@ await client.updateDocument("<dataset_id>", "<doc_id>", {
 await client.deleteDocuments("<dataset_id>", ["<doc_id1>", "<doc_id2>"]);
 ```
 
-RAGFlow v0.25.2 defines document updates as `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. `updateDocument()` sends that request directly.
+RAGFlow v0.25.5 defines document updates as `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. `updateDocument()` sends that request directly.
 
 You can also filter documents by metadata:
 
@@ -99,6 +104,16 @@ You can also summarize metadata across documents:
 ```javascript
 const summary = await client.metadataSummary("<dataset_id>", ["<doc_id1>", "<doc_id2>"]);
 // Returns: { summary: [...] }
+```
+
+## Document Download
+
+```javascript
+// Download via dataset
+const doc = await client.downloadDocument(datasetId, documentId);
+
+// Download by document ID
+const doc = await client.downloadDocumentById(documentId);
 ```
 
 ## Parsing
@@ -208,6 +223,35 @@ const results = await client.retrieve({
 });
 ```
 
+## Connector
+
+```javascript
+// List connectors
+const connectors = await client.listConnectors(datasetId);
+
+// Create connector
+const connector = await client.createConnector(datasetId, {
+  name: "REST API",
+  type: "rest",
+  config: { url: "https://api.example.com" }
+});
+
+// Get, update, delete connector
+const conn = await client.getConnector(connectorId);
+await client.updateConnector(connectorId, { name: "Updated" });
+await client.deleteConnector(connectorId);
+```
+
+## RAPTOR
+
+```javascript
+// Start RAPTOR processing
+const task = await client.runRaptor(datasetId);
+
+// Check progress
+const progress = await client.traceRaptor(datasetId);
+```
+
 ## Chat Assistant
 
 ```javascript
@@ -294,6 +338,16 @@ await client.deleteAgents(["<agent_id1>"]);
 
 `createAgent()` and `updateAgent()` forward the DSL directly to RAGFlow, where the server normalizes it through the canvas DSL normalization layer. In practice, hand-authored DSL should include `components`, `history`, `path`, `retrieval`, `variables`, `globals`, and `graph`, and every component-backed graph node should include `data.name`. See [AGENT_GUIDE.md](AGENT_GUIDE.md) for the current schema and minimal examples.
 
+## Agent Tags
+
+```javascript
+// List all agent tags
+const tags = await client.listAgentTags();
+
+// Update agent tags
+await client.updateAgentTags(agentId, ["ml", "rag"]);
+```
+
 ## Agent Session
 
 ```javascript
@@ -369,7 +423,7 @@ const models = await client.listModels({ include_details: true });
 // Returns: { groups: [...], total: <n> }
 ```
 
-RAGFlow v0.25.2 exposes model discovery at `/v1/llm/my_llms`. Authentication uses `RAGFLOW_API_KEY`.
+RAGFlow v0.25.5 exposes model discovery at `/v1/llm/my_llms`. Authentication uses `RAGFLOW_API_KEY`.
 
 Use model names plus provider suffixes when creating resources, for example `qwen-turbo@Tongyi-Qianwen` for `llm_id` and `text-embedding-v4@Tongyi-Qianwen` for `embedding_model`. Some deployments return numeric `id` fields from `/v1/llm/my_llms`; those are server row IDs and should not be sent as `llm_id`.
 

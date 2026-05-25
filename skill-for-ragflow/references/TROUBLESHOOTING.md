@@ -21,10 +21,12 @@
 | `embed-code` creates a new token unexpectedly | No existing system token had a `beta` value | This matches RAGFlow's embed UI behavior; use `list-system-tokens` to inspect current tokens |
 | `embed-chat` returns only the prologue or an empty answer | The embedded chatbot route was called without `session_id`; RAGFlow uses that first call to create the iframe session | Use the CLI `embed-chat` command, which bootstraps `session_id` automatically, or call `ensureEmbeddedChatSession()` before `embeddedChat()` in API code |
 | `list-models` returns Unauthorized | The `/v1/llm/my_llms` endpoint rejected the API key | Verify `RAGFLOW_API_KEY` is valid and has not expired |
-| `update-document` gets Method Not Allowed | The server does not match the v0.25.2 route shape expected by this skill | Use a v0.25.2-compatible server; document updates are sent with `PATCH` |
+| `update-document` gets Method Not Allowed | The server does not match the v0.25.5 route shape expected by this skill | Use a v0.25.5-compatible server; document updates are sent with `PATCH` |
 | `Invalid URL` | `RAGFLOW_URL` is empty or malformed | Use a server root such as `http://localhost:9380`; bare hosts like `localhost:9380` are normalized to `http://...` |
 | Connection refused | `RAGFLOW_URL` is wrong or the server is down | Verify the URL and that the RAGFlow server is running |
 | API key exposed in logs or chat | The API key was shared or logged | Never share `RAGFLOW_API_KEY` in chat; regenerate the key if leaked |
 | Security warning on ClawHub install | The skill requires `RAGFLOW_API_KEY` which grants access to your RAGFlow deployment | Use a least-privilege API key, use HTTPS in production, and review permissions before approving |
+| "Connector authentication failed" | The external service rejected the connector credentials or the endpoint is unreachable | Verify the API key, secret, and base URL in the connector configuration |
+| "Invalid tag format" | Document tags were submitted in an unsupported format (e.g. nested objects) | Use simple strings or arrays of strings for document tags |
 
 In `--json` mode, command failures are emitted on stdout as `{ "error": { "message", "raw_message", "code", "status", "command" } }` and exit non-zero. `delete-chunks` may also include `existing_chunk_ids`, `missing_chunk_ids`, `retry_count`, `retries`, and `delete_chunk_diagnostics`.
