@@ -274,11 +274,14 @@ class RagflowClient {
   }
 
   async getDataset(datasetId) {
-    const result = await this.listDatasets({ id: datasetId });
-    if (!result || result.length === 0) {
-      throw new Error(`Dataset ${datasetId} not found`);
+    try {
+      return await this.request("GET", `/datasets/${datasetId}`);
+    } catch (err) {
+      if (this._isNotFoundError(err)) {
+        throw new Error(`Dataset ${datasetId} not found`);
+      }
+      throw err;
     }
-    return result[0];
   }
 
   async createDataset(data) {
@@ -321,6 +324,16 @@ class RagflowClient {
 
   async updateDocument(datasetId, documentId, data) {
     return this.request("PATCH", `/datasets/${datasetId}/documents/${documentId}`, { json: data });
+  }
+
+  // ── Document Download ──
+
+  async downloadDocument(datasetId, documentId) {
+    return this.request("GET", `/datasets/${datasetId}/documents/${documentId}`);
+  }
+
+  async downloadDocumentById(documentId) {
+    return this.request("GET", `/documents/${documentId}`);
   }
 
   // ── Chunk / Parsing ──
@@ -443,6 +456,38 @@ class RagflowClient {
   async retrieve(params) {
     return this.request("POST", "/retrieval", { json: params });
   }
+  // ── Connector ──
+
+  async listConnectors(datasetId, params = {}) {
+    const query = this._buildQuery(params);
+    return this.request("GET", `/datasets/${datasetId}/connectors?${query.toString()}`);
+  }
+
+  async createConnector(datasetId, data) {
+    return this.request("POST", `/datasets/${datasetId}/connectors`, { json: data });
+  }
+
+  async getConnector(connectorId) {
+    return this.request("GET", `/connectors/${connectorId}`);
+  }
+
+  async updateConnector(connectorId, data) {
+    return this.request("PATCH", `/connectors/${connectorId}`, { json: data });
+  }
+
+  async deleteConnector(connectorId) {
+    return this.request("DELETE", `/connectors/${connectorId}`);
+  }
+
+  // ── RAPTOR ──
+
+  async runRaptor(datasetId) {
+    return this.request("POST", `/datasets/${datasetId}/run_raptor`);
+  }
+
+  async traceRaptor(datasetId) {
+    return this.request("GET", `/datasets/${datasetId}/trace_raptor`);
+  }
 
   // ── Chat Assistant ──
 
@@ -531,6 +576,19 @@ class RagflowClient {
 
   async deleteAgents(ids) {
     return Promise.all(ids.map((id) => this.request("DELETE", `/agents/${id}`)));
+  }
+
+  // ── Agent Tags ──
+
+  async listAgentTags() {
+    return this.request("GET", "/agents/tags");
+  }
+
+  async updateAgentTags(agentId, tags) {
+    const tagString = Array.isArray(tags) ? tags.join(",") : tags;
+    return this.request("PUT", `/agents/${agentId}/tags`, {
+      json: { tags: tagString },
+    });
   }
 
   async getAgent(agentId) {
