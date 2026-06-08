@@ -59,7 +59,7 @@ node {baseDir}/scripts/ragflow.js update-dataset --id <id> --name "New Name"
 node {baseDir}/scripts/ragflow.js delete-datasets --ids <id1> <id2>
 ```
 
-When you provide `--embedding-model` to a real v0.25.5 server, use the tenant model identifier format `<model_name>@<provider>`, for example `text-embedding-v4@Tongyi-Qianwen`. Use `list-models` to discover available model/provider pairs.
+When you provide `--embedding-model` to a real v0.25.6 server, use the tenant model identifier format `<model_name>@<provider>`, for example `text-embedding-v4@Tongyi-Qianwen`. Use `list-models` to discover available model/provider pairs.
 
 Typical flow:
 
@@ -100,9 +100,11 @@ node {baseDir}/scripts/ragflow.js update-document --dataset <id> --id <doc_id> -
 node {baseDir}/scripts/ragflow.js update-document --dataset <id> --id <doc_id> --parser-config @parser_config.json --meta-fields @meta_fields.json
 node {baseDir}/scripts/ragflow.js metadata-summary --dataset <id> --doc-ids <doc_id1> <doc_id2>
 node {baseDir}/scripts/ragflow.js delete-documents --dataset <id> --ids <doc_id1>
+node {baseDir}/scripts/ragflow.js download-document --dataset <id> --id <doc_id>
+node {baseDir}/scripts/ragflow.js preview-document --id <doc_id>
 ```
 
-`update-document` follows the current v0.25.5 RAGFlow route and sends `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. It accepts `name`, `parser_config`, `chunk_method`, `enabled`, and `meta_fields`.
+`update-document` follows the current v0.25.6 RAGFlow route and sends `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. It accepts `name`, `parser_config`, `chunk_method`, `enabled`, and `meta_fields`.
 
 `list-documents` supports `metadata`, `metadata_condition`, `return_empty_metadata`, `orderby`, `desc`, `suffix`, `types`, and `run`.
 
@@ -265,6 +267,8 @@ node {baseDir}/scripts/ragflow.js chat-session --chat <chat_id> --session <sessi
 
 `chat-session` uses `POST /api/v1/chat/completions` with `chat_id` and `session_id` in the body. When `--messages` is provided, the CLI extracts the last `role: "user"` message as `question`; use `--question` when you already have a single user prompt.
 
+`--pass-all-history` (v0.25.6) sets `pass_all_history_messages: true`, which replaces the entire stored history with the submitted messages array instead of appending only the latest message (the new default behavior in v0.25.6).
+
 Use this path when the user wants multi-turn Q&A over documents without building a full agent workflow.
 
 ## Agent Operation
@@ -279,8 +283,10 @@ For a practical guide to the current canvas schema, variable rules, webhook mode
 node {baseDir}/scripts/ragflow.js list-agents
 node {baseDir}/scripts/ragflow.js create-agent --title "Assistant" --dsl '<dsl_json>'
 node {baseDir}/scripts/ragflow.js create-agent --title "Assistant" --dsl @agent_dsl.json
+node {baseDir}/scripts/ragflow.js create-agent --title "Assistant" --dsl @agent_dsl.json --canvas-type ""
 node {baseDir}/scripts/ragflow.js get-agent --id <agent_id>
 node {baseDir}/scripts/ragflow.js update-agent --id <agent_id> --title "New Name"
+node {baseDir}/scripts/ragflow.js update-agent --id <agent_id> --canvas-type "flow"
 node {baseDir}/scripts/ragflow.js delete-agents --ids <id1> <id2>
 ```
 
@@ -289,7 +295,7 @@ node {baseDir}/scripts/ragflow.js delete-agents --ids <id1> <id2>
 | Option | Description |
 |---|---|
 | `--tags` | Filter agents by tags (comma-separated) |
-`agent-chat` uses `POST /api/v1/agents/chat/completion` with `agent_id` in the JSON body.
+`agent-chat` uses `POST /api/v1/agents/chat/completions` with `agent_id` in the JSON body.
 
 Agents require a DSL workflow definition. A minimal current-schema DSL:
 
@@ -402,6 +408,7 @@ node {baseDir}/scripts/ragflow.js delete-agent-sessions --agent <agent_id> --ids
 ```bash
 node {baseDir}/scripts/ragflow.js agent-chat --agent <agent_id> --session <session_id> --question "Hello"
 node {baseDir}/scripts/ragflow.js agent-chat --agent <agent_id> --session <session_id> --question "Hello" --stream false
+node {baseDir}/scripts/ragflow.js agent-chat --agent <agent_id> --session <session_id> --question "Hello" --chat-template-kwargs '{"temperature": 0.5}'
 ```
 
 `--stream false` requests the final JSON result directly. The bundled client normalizes current `workflow_finished` envelopes into `{ answer, reference, session_id, id }`.
@@ -481,7 +488,7 @@ node {baseDir}/scripts/ragflow.js list-models --all
 
 This is usually the first stop when the user is troubleshooting model availability or deciding which model to use downstream.
 
-RAGFlow v0.25.5 exposes model discovery at `/v1/llm/my_llms`. Authentication uses `RAGFLOW_API_KEY`.
+RAGFlow v0.25.6 exposes model discovery at `/v1/llm/my_llms`. Authentication uses `RAGFLOW_API_KEY`.
 
 For create operations, use model names plus provider suffixes such as `qwen-turbo@Tongyi-Qianwen` or `text-embedding-v4@Tongyi-Qianwen`. If `list-models --include-details` shows numeric `id` fields, treat them as server row IDs, not values for `--llm-id` or `--embedding-model`.
 

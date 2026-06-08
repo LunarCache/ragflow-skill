@@ -128,6 +128,11 @@ function createMockServer(options = {}) {
         return;
       }
 
+      if (pathname === "/api/v1/documents/doc1/preview" && req.method === "GET") {
+        jsonResponse(res, { id: "doc1", name: "doc.pdf", content: "preview-base64" });
+        return;
+      }
+
       if (pathname === "/v1/llm/my_llms") {
         if (options.modelsUnauthorized) {
           apiResponse(res, 401, { code: 401, message: "Unauthorized" });
@@ -434,6 +439,12 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
     { args: ["create-connector", "--dataset", "ds1", "--config", "{\"type\":\"web\"}", "--json"], expect: { method: "POST", path: "/api/v1/datasets/ds1/connectors", body: { type: "web" } } },
     { args: ["run-raptor", "--dataset", "ds1", "--json"], expect: { method: "POST", path: "/api/v1/datasets/ds1/run_raptor" } },
     { args: ["trace-raptor", "--dataset", "ds1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/trace_raptor" } },
+    // v0.25.6 new features
+    { args: ["preview-document", "--id", "doc1", "--json"], expect: { method: "GET", path: "/api/v1/documents/doc1/preview" } },
+    { args: ["chat-session", "--chat", "chat1", "--session", "sess1", "-q", "Hello", "--pass-all-history", "--json"], expect: { method: "POST", path: "/api/v1/chat/completions", body: { chat_id: "chat1", question: "Hello", session_id: "sess1", pass_all_history_messages: true } } },
+    { args: ["create-agent", "--title", "Agent Canvas", "--dsl", inlineDsl, "--canvas-type", "flow", "--json"], expect: { method: "POST", path: "/api/v1/agents", body: { title: "Agent Canvas", dsl: canonicalDsl, canvas_type: "flow" } } },
+    { args: ["update-agent", "--id", "agent1", "--title", "Agent2", "--dsl", `@${dsl}`, "--canvas-type", "flow", "--json"], expect: { method: "PUT", path: "/api/v1/agents/agent1", body: { title: "Agent2", dsl: canonicalDsl, canvas_type: "flow" } } },
+    { args: ["agent-chat", "--agent", "agent1", "--session", "asess1", "-q", "Hello", "--chat-template-kwargs", "{\"temperature\": 0.5}", "--json"], expect: { method: "POST", path: "/api/v1/agents/chat/completions", body: { agent_id: "agent1", question: "Hello", session_id: "asess1", chat_template_kwargs: { temperature: 0.5 } } } },
   ];
 
   try {

@@ -336,6 +336,10 @@ class RagflowClient {
     return this.request("GET", `/documents/${documentId}`);
   }
 
+  async previewDocument(documentId) {
+    return this.request("GET", `/documents/${documentId}/preview`);
+  }
+
   // ── Chunk / Parsing ──
 
   async startParsing(datasetId, documentIds) {
@@ -549,7 +553,10 @@ class RagflowClient {
       const lastUserMessage = userMessages[userMessages.length - 1];
       if (lastUserMessage) payload.question = lastUserMessage.content;
     }
-    delete payload.messages;
+    // v0.25.6: preserve messages when pass_all_history_messages is set
+    if (!payload.pass_all_history_messages && !payload.pass_all_history) {
+      delete payload.messages;
+    }
     if (!payload.question) {
       throw new Error("chatSession requires question or messages with a user message");
     }

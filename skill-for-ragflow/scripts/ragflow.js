@@ -530,6 +530,15 @@ async function downloadDocument(opts) {
   json(result);
 }
 
+async function previewDocument(opts) {
+  const client = createClient();
+  const id = requireOpt(opts, "id");
+  info(`Previewing document ${id}...`);
+  const result = await client.previewDocument(id);
+  ok("Document preview fetched");
+  json(result);
+}
+
 // ── Parsing ──
 
 async function startParsing(opts) {
@@ -886,6 +895,8 @@ async function chatSession(opts) {
   if (opts.presencePenalty !== undefined) data.presence_penalty = Number(opts.presencePenalty);
   if (opts.maxTokens !== undefined) data.max_tokens = Number(opts.maxTokens);
   if (opts.stream !== undefined) data.stream = opts.stream !== "false" && opts.stream !== false;
+  if (opts.passAllHistory) data.pass_all_history_messages = true;
+  if (opts.messages) data.messages = jsonOption(opts.messages, "--messages");
   info(`Asking session: ${session}...`);
   const result = await client.chatSession(chatId, session, data);
   ok("Session response received");
@@ -944,6 +955,7 @@ async function createAgent(opts) {
   const dsl = requireOpt(opts, "dsl");
   const data = { title, dsl: jsonOption(dsl, "--dsl") };
   if (opts.description) data.description = opts.description;
+  if (opts.canvasType) data.canvas_type = opts.canvasType;
   info(`Creating agent "${title}"...`);
   const result = await client.createAgent(data);
   ok(`Agent created`);
@@ -957,6 +969,7 @@ async function updateAgent(opts) {
   if (opts.title) data.title = opts.title;
   if (opts.dsl) data.dsl = jsonOption(opts.dsl, "--dsl");
   if (opts.description) data.description = opts.description;
+  if (opts.canvasType) data.canvas_type = opts.canvasType;
   info(`Updating agent ${id}...`);
   const result = await client.updateAgent(id, data);
   ok("Agent updated");
@@ -1028,6 +1041,7 @@ async function agentChat(opts) {
   }
   const params = {};
   if (opts.stream !== undefined) params.stream = opts.stream !== "false" && opts.stream !== false;
+  if (opts.chatTemplateKwargs) params.chat_template_kwargs = jsonOption(opts.chatTemplateKwargs, "--chat-template-kwargs");
   info(`Asking agent: "${question}"`);
   const result = await client.agentChat(agentId, session, question, params);
   ok("Agent response received");
@@ -1267,6 +1281,7 @@ const COMMANDS = {
   "update-document":   { fn: updateDocument,   group: "Document",  desc: "Update a document" },
   "delete-documents":  { fn: deleteDocuments,  group: "Document",  desc: "Delete documents" },
   "download-document": { fn: downloadDocument, group: "Document", desc: "Download a document" },
+  "preview-document":  { fn: previewDocument,  group: "Document", desc: "Preview a document inline by ID" },
   // Parsing
   "start-parsing":     { fn: startParsing,     group: "Parsing",   desc: "Start document parsing" },
   "stop-parsing":      { fn: stopParsing,      group: "Parsing",   desc: "Stop document parsing" },
@@ -1390,6 +1405,9 @@ ${C.bold}Common Options:${C.reset}
     --presence-penalty  Presence penalty
     --max-tokens        Max tokens
     --stream            Stream completion
+    --pass-all-history  Pass all history messages (chat-session)
+    --canvas-type       Canvas type for agents (create-agent, update-agent)
+    --chat-template-kwargs Chat template kwargs JSON (agent-chat)
     --rerank, -r        Rerank model ID
     --keyword           Enable keyword search
     --kg                Enable knowledge graph

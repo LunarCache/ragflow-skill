@@ -687,3 +687,151 @@ test("traceRaptor returns progress", async () => {
   }
 });
 
+// ── v0.25.6 new feature tests ──
+
+test("previewDocument routes to /documents/{id}/preview", async () => {
+  let requestUrl = null;
+  let requestMethod = null;
+  const server = http.createServer((req, res) => {
+    requestMethod = req.method;
+    requestUrl = req.url;
+
+    if (req.method === "GET" && req.url === "/api/v1/documents/doc-preview-1/preview") {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({
+        code: 0,
+        data: {
+          id: "doc-preview-1",
+          name: "report.pdf",
+          content: "preview-content-base64",
+        },
+      }));
+      return;
+    }
+
+    res.writeHead(404, { "content-type": "application/json" });
+    res.end(JSON.stringify({ code: 404, message: "not found" }));
+  });
+
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address();
+  const previousUrl = process.env.RAGFLOW_URL;
+  const previousKey = process.env.RAGFLOW_API_KEY;
+  process.env.RAGFLOW_URL = `http://127.0.0.1:${port}`;
+  process.env.RAGFLOW_API_KEY = "test-key";
+
+  try {
+    const client = createClient();
+    const result = await client.previewDocument("doc-preview-1");
+    assert.equal(requestMethod, "GET", "Should use GET method");
+    assert.equal(requestUrl, "/api/v1/documents/doc-preview-1/preview", "Should call preview endpoint");
+    assert.equal(result.id, "doc-preview-1");
+    assert.equal(result.name, "report.pdf");
+  } finally {
+    if (previousUrl === undefined) delete process.env.RAGFLOW_URL;
+    else process.env.RAGFLOW_URL = previousUrl;
+    if (previousKey === undefined) delete process.env.RAGFLOW_API_KEY;
+    else process.env.RAGFLOW_API_KEY = previousKey;
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("chatSession preserves messages when pass_all_history_messages is true", async () => {
+  let receivedPayload = null;
+  const server = http.createServer((req, res) => {
+    if (req.method === "POST" && req.url === "/api/v1/chat/completions") {
+      const chunks = [];
+      req.on("data", (chunk) => chunks.push(chunk));
+      req.on("end", () => {
+        receivedPayload = JSON.parse(Buffer.concat(chunks).toString("utf-8"));
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({
+          code: 0,
+          data: { answer: "ok", reference: { chunks: [] } },
+        }));
+      });
+      return;
+    }
+
+    res.writeHead(404, { "content-type": "application/json" });
+    res.end(JSON.stringify({ code: 404, message: "not found" }));
+  });
+
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address();
+  const previousUrl = process.env.RAGFLOW_URL;
+  const previousKey = process.env.RAGFLOW_API_KEY;
+  process.env.RAGFLOW_URL = `http://127.0.0.1:${port}`;
+  process.env.RAGFLOW_API_KEY = "test-key";
+
+  try {
+    const client = createClient();
+    await client.chatSession("chat1", "sess1", {
+      question: "Hello",
+      messages: [{ role: "user", content: "Hello" }],
+      pass_all_history_messages: true,
+      stream: false,
+    });
+
+    assert.ok(receivedPayload, "Should have received a payload");
+    assert.equal(receivedPayload.pass_all_history_messages, true, "Should forward pass_all_history_messages");
+    assert.ok(Array.isArray(receivedPayload.messages), "Should preserve messages array when pass_all_history_messages is true");
+    assert.equal(receivedPayload.messages.length, 1);
+    assert.equal(receivedPayload.messages[0].role, "user");
+  } finally {
+    if (previousUrl === undefined) delete process.env.RAGFLOW_URL;
+    else process.env.RAGFLOW_URL = previousUrl;
+    if (previousKey === undefined) delete process.env.RAGFLOW_API_KEY;
+    else process.env.RAGFLOW_API_KEY = previousKey;
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("chatSession deletes messages when pass_all_history_messages is absent", async () => {
+  let receivedPayload = null;
+  const server = http.createServer((req, res) => {
+    if (req.method === "POST" && req.url === "/api/v1/chat/completions") {
+      const chunks = [];
+      req.on("data", (chunk) => chunks.push(chunk));
+      req.on("end", () => {
+        receivedPayload = JSON.parse(Buffer.concat(chunks).toString("utf-8"));
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({
+          code: 0,
+          data: { answer: "ok", reference: { chunks: [] } },
+        }));
+      });
+      return;
+    }
+
+    res.writeHead(404, { "content-type": "application/json" });
+    res.end(JSON.stringify({ code: 404, message: "not found" }));
+  });
+
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address();
+  const previousUrl = process.env.RAGFLOW_URL;
+  const previousKey = process.env.RAGFLOW_API_KEY;
+  process.env.RAGFLOW_URL = `http://127.0.0.1:${port}`;
+  process.env.RAGFLOW_API_KEY = "test-key";
+
+  try {
+    const client = createClient();
+    await client.chatSession("chat1", "sess1", {
+      question: "Hello",
+      messages: [{ role: "user", content: "Hello" }],
+      stream: false,
+    });
+
+    assert.ok(receivedPayload, "Should have received a payload");
+    assert.equal(receivedPayload.messages, undefined, "Should delete messages when pass_all_history_messages is absent");
+    assert.equal(receivedPayload.question, "Hello");
+  } finally {
+    if (previousUrl === undefined) delete process.env.RAGFLOW_URL;
+    else process.env.RAGFLOW_URL = previousUrl;
+    if (previousKey === undefined) delete process.env.RAGFLOW_API_KEY;
+    else process.env.RAGFLOW_API_KEY = previousKey;
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+

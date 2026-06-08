@@ -1,16 +1,29 @@
 # RAGFlow Skill
 
-A Codex/OpenCode skill for operating [RAGFlow](https://github.com/infiniflow/ragflow) v0.25.5 through a bundled Node.js CLI and API client.
+A Codex/OpenCode skill for operating [RAGFlow](https://github.com/infiniflow/ragflow) v0.25.6 through a bundled Node.js CLI and API client.
 
 ## Features
 
-- **Full RAGFlow v0.25.5 API coverage** - datasets, documents (tags, RAPTOR), parsing, chunks, retrieval, chat assistants, agents (structured output), embedded site access, model discovery, and connectors
+- **Full RAGFlow v0.25.6 API coverage** - datasets, documents (tags, RAPTOR), parsing, chunks, retrieval, chat assistants, agents (structured output), embedded site access, model discovery, and connectors
 - **Zero dependencies** - pure Node.js, no npm install required
 - **JSON-first output** - `--json` flag for machine-readable output suitable for pipelines
 - **Robust error handling** - automatic retries for transient failures, structured error envelopes
 - **Comprehensive documentation** - command reference, API examples, troubleshooting guide
 
 ## Update Notes
+
+### v1.4.0 (RAGFlow v0.25.6)
+
+- **Chat session history behavior changed.** `POST /api/v1/chat/completions` now defaults to appending only the latest message to stored history instead of requiring the full messages array. Use `--pass-all-history` or `pass_all_history_messages: true` to replace the entire history.
+- Added `conversation_id` as an alias for `session_id` in chat completions.
+- Added `--canvas-type` option to `create-agent` and `update-agent` for the new `canvas_type` field.
+- Added `--chat-template-kwargs` option to `agent-chat` for forwarding chat template parameters to the underlying model.
+- Added `preview-document` command for inline document preview (`GET /api/v1/documents/{id}/preview`).
+- Added `Browser` component type to the agent DSL guide for browser automation workflows.
+- Fixed documentation: agent chat route now consistently documented as `/agents/chat/completions` (plural), matching the code.
+- Updated `agents/openai.yaml` from stale v0.25.2 reference to v0.25.6.
+
+### Previous versions
 
 - Added embedded site support for RAGFlow shared chatbot and agent routes, including token management, iframe/widget code generation, metadata inspection, and embedded chat calls.
 - `upload-documents --files` now accepts `display-name=path` so uploaded documents keep the original user-facing filename instead of a temporary task path.
@@ -199,7 +212,7 @@ const agentAnswer = await client.agentChat(agentId, agentSession.id, "Summarize 
 ## Requirements
 
 - **Node.js** 18+ (uses built-in `node:test` and `fetch`)
-- **RAGFlow** v0.25.5 server
+- **RAGFlow** v0.25.6 server
 
 ## License
 

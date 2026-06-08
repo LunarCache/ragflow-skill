@@ -86,7 +86,7 @@ await client.updateDocument("<dataset_id>", "<doc_id>", {
 await client.deleteDocuments("<dataset_id>", ["<doc_id1>", "<doc_id2>"]);
 ```
 
-RAGFlow v0.25.5 defines document updates as `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. `updateDocument()` sends that request directly.
+RAGFlow v0.25.6 defines document updates as `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. `updateDocument()` sends that request directly.
 
 You can also filter documents by metadata:
 
@@ -114,6 +114,9 @@ const doc = await client.downloadDocument(datasetId, documentId);
 
 // Download by document ID
 const doc = await client.downloadDocumentById(documentId);
+
+// Preview a document inline (v0.25.6)
+const preview = await client.previewDocument(documentId);
 ```
 
 ## Parsing
@@ -315,7 +318,7 @@ const sessionAnswerFromMessages = await client.chatSession("<chat_id>", "<sessio
 });
 ```
 
-`chatSession()` uses `POST /api/v1/chat/completions` with `chat_id` and `session_id` in the JSON body.
+`chatSession()` uses `POST /api/v1/chat/completions` with `chat_id` and `session_id` in the JSON body. In v0.25.6, `conversation_id` is accepted as an alias for `session_id`. By default, only the latest user message is appended to the stored history. Set `pass_all_history_messages: true` to replace the entire history with the submitted messages array.
 
 ## Agent
 
@@ -376,7 +379,7 @@ const finalAnswer = await client.agentChat("<agent_id>", "<session_id>", "Analyz
 ```
 
 When `stream: false` is used, `agentChat()` still normalizes current `workflow_finished` or `done` JSON envelopes into the same final answer shape used by the streaming path.
-`agentChat()` uses `POST /api/v1/agents/chat/completion` with `agent_id` in the JSON body.
+`agentChat()` uses `POST /api/v1/agents/chat/completions` with `agent_id` in the JSON body.
 
 ## Embedded Website Access
 
@@ -423,7 +426,7 @@ const models = await client.listModels({ include_details: true });
 // Returns: { groups: [...], total: <n> }
 ```
 
-RAGFlow v0.25.5 exposes model discovery at `/v1/llm/my_llms`. Authentication uses `RAGFLOW_API_KEY`.
+RAGFlow v0.25.6 exposes model discovery at `/v1/llm/my_llms`. Authentication uses `RAGFLOW_API_KEY`.
 
 Use model names plus provider suffixes when creating resources, for example `qwen-turbo@Tongyi-Qianwen` for `llm_id` and `text-embedding-v4@Tongyi-Qianwen` for `embedding_model`. Some deployments return numeric `id` fields from `/v1/llm/my_llms`; those are server row IDs and should not be sent as `llm_id`.
 
