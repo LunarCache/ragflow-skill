@@ -1,16 +1,24 @@
 # RAGFlow Skill
 
-A Codex/OpenCode skill for operating [RAGFlow](https://github.com/infiniflow/ragflow) v0.25.6 through a bundled Node.js CLI and API client.
+A Codex/OpenCode skill for operating [RAGFlow](https://github.com/infiniflow/ragflow) v0.26.0 through a bundled Node.js CLI and API client.
 
 ## Features
 
-- **Full RAGFlow v0.25.6 API coverage** - datasets, documents (tags, RAPTOR), parsing, chunks, retrieval, chat assistants, agents (structured output), embedded site access, model discovery, and connectors
+- **Full RAGFlow v0.26.0 API coverage** - datasets, documents (tags, RAPTOR), parsing, chunks, retrieval, chat assistants, agents (structured output), embedded site access, model discovery, model providers, and connectors
 - **Zero dependencies** - pure Node.js, no npm install required
 - **JSON-first output** - `--json` flag for machine-readable output suitable for pipelines
 - **Robust error handling** - automatic retries for transient failures, structured error envelopes
 - **Comprehensive documentation** - command reference, API examples, troubleshooting guide
 
 ## Update Notes
+
+### v1.5.0 (RAGFlow v0.26.0)
+
+- Updated all references and route-shape notes from v0.25.6 to v0.26.0.
+- Added model-provider management commands wrapping the new `/api/v1/providers` API: `list-providers`, `get-provider`, `add-provider`, `delete-provider`, `list-provider-models`, `list-provider-instances`, `get-provider-instance`, `create-provider-instance`, `delete-provider-instances`, `verify-provider`, `list-instance-models`, `add-instance-model`, and `set-model-status`.
+- Added tenant model commands wrapping the new `/api/v1/models` API: `list-added-models`, `list-default-models`, and `set-default-model`.
+- List endpoints now clamp `--page-size` (and `retrieve --top-n`) to 100 with a warning, matching v0.26.0's server-side `page_size` cap.
+- Documented v0.26.0's new connector types (OneDrive, Outlook, Microsoft Teams, Slack, SharePoint, Salesforce, Azure Blob Storage); `create-connector` already passes `--config` through verbatim, so no flag changes were needed.
 
 ### v1.4.0 (RAGFlow v0.25.6)
 
@@ -212,7 +220,7 @@ const agentAnswer = await client.agentChat(agentId, agentSession.id, "Summarize 
 ## Requirements
 
 - **Node.js** 18+ (uses built-in `node:test` and `fetch`)
-- **RAGFlow** v0.25.6 server
+- **RAGFlow** v0.26.0 server
 
 ## License
 

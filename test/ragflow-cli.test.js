@@ -439,12 +439,32 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
     { args: ["create-connector", "--dataset", "ds1", "--config", "{\"type\":\"web\"}", "--json"], expect: { method: "POST", path: "/api/v1/datasets/ds1/connectors", body: { type: "web" } } },
     { args: ["run-raptor", "--dataset", "ds1", "--json"], expect: { method: "POST", path: "/api/v1/datasets/ds1/run_raptor" } },
     { args: ["trace-raptor", "--dataset", "ds1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/trace_raptor" } },
-    // v0.25.6 new features
+    // chat/agent session features
     { args: ["preview-document", "--id", "doc1", "--json"], expect: { method: "GET", path: "/api/v1/documents/doc1/preview" } },
+    // v0.26.0 page_size cap: oversized --page-size is clamped to 100
+    { args: ["list-datasets", "--page-size", "500", "--json"], expect: { method: "GET", path: "/api/v1/datasets", query: { page_size: 100 } } },
     { args: ["chat-session", "--chat", "chat1", "--session", "sess1", "-q", "Hello", "--pass-all-history", "--json"], expect: { method: "POST", path: "/api/v1/chat/completions", body: { chat_id: "chat1", question: "Hello", session_id: "sess1", pass_all_history_messages: true } } },
     { args: ["create-agent", "--title", "Agent Canvas", "--dsl", inlineDsl, "--canvas-type", "flow", "--json"], expect: { method: "POST", path: "/api/v1/agents", body: { title: "Agent Canvas", dsl: canonicalDsl, canvas_type: "flow" } } },
     { args: ["update-agent", "--id", "agent1", "--title", "Agent2", "--dsl", `@${dsl}`, "--canvas-type", "flow", "--json"], expect: { method: "PUT", path: "/api/v1/agents/agent1", body: { title: "Agent2", dsl: canonicalDsl, canvas_type: "flow" } } },
     { args: ["agent-chat", "--agent", "agent1", "--session", "asess1", "-q", "Hello", "--chat-template-kwargs", "{\"temperature\": 0.5}", "--json"], expect: { method: "POST", path: "/api/v1/agents/chat/completions", body: { agent_id: "agent1", question: "Hello", session_id: "asess1", chat_template_kwargs: { temperature: 0.5 } } } },
+    // v0.26.0 tenant models
+    { args: ["list-added-models", "--type", "chat", "--json"], expect: { method: "GET", path: "/api/v1/models", query: { type: "chat" } } },
+    { args: ["list-default-models", "--json"], expect: { method: "GET", path: "/api/v1/models/default" } },
+    { args: ["set-default-model", "--model-type", "chat", "--model-provider", "OpenAI", "--model-instance", "default", "--model-name", "gpt-4o", "--json"], expect: { method: "PATCH", path: "/api/v1/models/default", body: { model_type: "chat", model_provider: "OpenAI", model_instance: "default", model_name: "gpt-4o" } } },
+    // v0.26.0 model providers
+    { args: ["list-providers", "--available", "--json"], expect: { method: "GET", path: "/api/v1/providers", query: { available: "true" } } },
+    { args: ["get-provider", "--name", "OpenAI", "--json"], expect: { method: "GET", path: "/api/v1/providers/OpenAI" } },
+    { args: ["add-provider", "--name", "OpenAI", "--json"], expect: { method: "PUT", path: "/api/v1/providers", body: { provider_name: "OpenAI" } } },
+    { args: ["delete-provider", "--name", "OpenAI", "--json"], expect: { method: "DELETE", path: "/api/v1/providers/OpenAI" } },
+    { args: ["list-provider-models", "--name", "OpenAI", "--api-key", "sk-x", "--json"], expect: { method: "GET", path: "/api/v1/providers/OpenAI/models", query: { api_key: "sk-x" } } },
+    { args: ["list-provider-instances", "--name", "OpenAI", "--json"], expect: { method: "GET", path: "/api/v1/providers/OpenAI/instances" } },
+    { args: ["get-provider-instance", "--name", "OpenAI", "--instance", "default", "--json"], expect: { method: "GET", path: "/api/v1/providers/OpenAI/instances/default" } },
+    { args: ["create-provider-instance", "--name", "OpenAI", "--instance", "default", "--api-key", "sk-x", "--json"], expect: { method: "POST", path: "/api/v1/providers/OpenAI/instances", body: { instance_name: "default", api_key: "sk-x" } } },
+    { args: ["delete-provider-instances", "--name", "OpenAI", "--instances", "default", "--json"], expect: { method: "DELETE", path: "/api/v1/providers/OpenAI/instances", body: { instances: ["default"] } } },
+    { args: ["verify-provider", "--name", "OpenAI", "--api-key", "sk-x", "--json"], expect: { method: "POST", path: "/api/v1/providers/OpenAI/connection", body: { api_key: "sk-x" } } },
+    { args: ["list-instance-models", "--name", "OpenAI", "--instance", "default", "--supported", "--json"], expect: { method: "GET", path: "/api/v1/providers/OpenAI/instances/default/models", query: { supported: "true" } } },
+    { args: ["add-instance-model", "--name", "OpenAI", "--instance", "default", "--model-name", "gpt-4o", "--model-type", "chat", "--json"], expect: { method: "POST", path: "/api/v1/providers/OpenAI/instances/default/models", body: { model_name: "gpt-4o", model_type: "chat" } } },
+    { args: ["set-model-status", "--name", "OpenAI", "--instance", "default", "--model-name", "text-embedding-v4@Tongyi-Qianwen", "--status", "enable", "--json"], expect: { method: "PATCH", path: "/api/v1/providers/OpenAI/instances/default/models/text-embedding-v4%40Tongyi-Qianwen", body: { status: "enable" } } },
   ];
 
   try {
@@ -502,6 +522,20 @@ test("empty list commands still emit JSON when --json is set", async () => {
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stdout.trim(), "[]");
     assert.equal(JSON.parse(result.stdout).length, 0);
+  } finally {
+    await server.close();
+  }
+});
+
+test("oversized --page-size is clamped to 100 and warns in human-readable mode", async () => {
+  const server = await createMockServer();
+  try {
+    const result = await runCli(server.url, ["list-datasets", "--page-size", "500"]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /page_size capped at 100/);
+    const datasetRequest = server.requests.find((r) => new URL(r.url, "http://127.0.0.1").pathname === "/api/v1/datasets");
+    assert.ok(datasetRequest, "expected a /api/v1/datasets request");
+    assert.equal(new URL(datasetRequest.url, "http://127.0.0.1").searchParams.get("page_size"), "100");
   } finally {
     await server.close();
   }

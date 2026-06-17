@@ -43,7 +43,7 @@ On command failure with `--json`, the CLI exits non-zero and prints a structured
 | [RAG Assistant Operation](#rag-assistant-operation) | Create chat assistants, manage sessions, and run Q&A |
 | [Agent Operation](#agent-operation) | Create tool-capable agents, manage sessions, and run agent chat |
 | [Embedded Website Access](#embedded-website-access) | Generate iframe/widget code and call shared chatbots/agentbots |
-| [Discovery and Configuration](#discovery-and-configuration) | Inspect available LLM models before choosing downstream workflows |
+| [Discovery and Configuration](#discovery-and-configuration) | Inspect available LLM models, and manage model providers/instances (v0.26.0) |
 | [System Operations](#system-operations) | Read version and log-level settings |
 
 ## Knowledge Base Setup
@@ -59,7 +59,7 @@ node {baseDir}/scripts/ragflow.js update-dataset --id <id> --name "New Name"
 node {baseDir}/scripts/ragflow.js delete-datasets --ids <id1> <id2>
 ```
 
-When you provide `--embedding-model` to a real v0.25.6 server, use the tenant model identifier format `<model_name>@<provider>`, for example `text-embedding-v4@Tongyi-Qianwen`. Use `list-models` to discover available model/provider pairs.
+When you provide `--embedding-model` to a real v0.26.0 server, use the tenant model identifier format `<model_name>@<provider>`, for example `text-embedding-v4@Tongyi-Qianwen`. Use `list-models` to discover available model/provider pairs.
 
 Typical flow:
 
@@ -81,6 +81,8 @@ Create a connector.
 **Options**: `--dataset`, `--config` (JSON file), `--json`
 
 **Example**: `node ragflow.js create-connector --dataset <id> --config @connector.json --json`
+
+The connector `--config` is passed through verbatim, so new v0.26.0 connector types work without a CLI change. v0.26.0 adds connectors for OneDrive, Outlook, Microsoft Teams, Slack, SharePoint, Salesforce, and Azure Blob Storage, alongside the existing types (e.g. GitHub). Set the type and auth fields inside the config JSON.
 
 ### `get-connector`, `update-connector`, `delete-connector`
 
@@ -104,7 +106,7 @@ node {baseDir}/scripts/ragflow.js download-document --dataset <id> --id <doc_id>
 node {baseDir}/scripts/ragflow.js preview-document --id <doc_id>
 ```
 
-`update-document` follows the current v0.25.6 RAGFlow route and sends `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. It accepts `name`, `parser_config`, `chunk_method`, `enabled`, and `meta_fields`.
+`update-document` follows the current v0.26.0 RAGFlow route and sends `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. It accepts `name`, `parser_config`, `chunk_method`, `enabled`, and `meta_fields`.
 
 `list-documents` supports `metadata`, `metadata_condition`, `return_empty_metadata`, `orderby`, `desc`, `suffix`, `types`, and `run`.
 
@@ -267,7 +269,7 @@ node {baseDir}/scripts/ragflow.js chat-session --chat <chat_id> --session <sessi
 
 `chat-session` uses `POST /api/v1/chat/completions` with `chat_id` and `session_id` in the body. When `--messages` is provided, the CLI extracts the last `role: "user"` message as `question`; use `--question` when you already have a single user prompt.
 
-`--pass-all-history` (v0.25.6) sets `pass_all_history_messages: true`, which replaces the entire stored history with the submitted messages array instead of appending only the latest message (the new default behavior in v0.25.6).
+`--pass-all-history` sets `pass_all_history_messages: true`, which replaces the entire stored history with the submitted messages array instead of appending only the latest message (the default behavior in v0.26.0).
 
 Use this path when the user wants multi-turn Q&A over documents without building a full agent workflow.
 
@@ -488,9 +490,45 @@ node {baseDir}/scripts/ragflow.js list-models --all
 
 This is usually the first stop when the user is troubleshooting model availability or deciding which model to use downstream.
 
-RAGFlow v0.25.6 exposes model discovery at `/v1/llm/my_llms`. Authentication uses `RAGFLOW_API_KEY`.
+RAGFlow v0.26.0 exposes model discovery at `/v1/llm/my_llms`. Authentication uses `RAGFLOW_API_KEY`.
 
 For create operations, use model names plus provider suffixes such as `qwen-turbo@Tongyi-Qianwen` or `text-embedding-v4@Tongyi-Qianwen`. If `list-models --include-details` shows numeric `id` fields, treat them as server row IDs, not values for `--llm-id` or `--embedding-model`.
+
+### Tenant models (v0.26.0)
+
+These commands use the `/api/v1/models` routes (separate from the legacy `list-models` discovery above).
+
+| Command | Purpose | Options |
+|---------|---------|---------|
+| `list-added-models` | List the tenant's added models | `--type` (filter), `--json` |
+| `list-default-models` | List the tenant's default models | `--json` |
+| `set-default-model` | Set or clear the default model for a type | `--model-type` (required), `--model-provider`, `--model-instance`, `--model-name`, `--json` |
+
+`set-default-model` requires `--model-type` (one of `chat`, `embedding`, `rerank`, `asr`, `vision`, `tts`, `ocr`). Provide `--model-provider`, `--model-instance`, and `--model-name` to set a default; omit them to clear it.
+
+### Model providers (v0.26.0)
+
+v0.26.0 adds provider/instance/model management under `/api/v1/providers`. An "instance" holds one set of credentials, and a provider can have multiple instances (multiple API keys).
+
+| Command | Purpose | Options |
+|---------|---------|---------|
+| `list-providers` | List configured providers, or `--available` system providers | `--available`, `--json` |
+| `get-provider` | Get provider details | `--name` (required), `--json` |
+| `add-provider` | Add a provider for the tenant | `--name` (required), `--json` |
+| `delete-provider` | Remove a provider | `--name` (required), `--json` |
+| `list-provider-models` | List a provider's available models | `--name` (required), `--api-key`, `--base-url`, `--json` |
+| `list-provider-instances` | List a provider's instances | `--name` (required), `--json` |
+| `get-provider-instance` | Get one instance | `--name`, `--instance` (both required), `--json` |
+| `create-provider-instance` | Create an instance with credentials | `--name`, `--instance`, `--api-key` (required), `--base-url`, `--region`, `--model-info` (JSON), `--json` |
+| `delete-provider-instances` | Remove instances | `--name` (required), `--instances` (multiple, required), `--json` |
+| `verify-provider` | Test a connection / API key without persisting | `--name`, `--api-key` (required), `--base-url`, `--region`, `--json` |
+| `list-instance-models` | List models on an instance | `--name`, `--instance` (required), `--supported`, `--json` |
+| `add-instance-model` | Add a model to an instance | `--name`, `--instance`, `--model-name`, `--model-type` (required), `--max-tokens`, `--extra` (JSON), `--json` |
+| `set-model-status` | Enable or disable an instance model | `--name`, `--instance`, `--model-name`, `--status` (required), `--json` |
+
+**Example**: `node ragflow.js create-provider-instance --name OpenAI --instance default --api-key sk-... --json`
+
+Treat `--api-key` values as sensitive. Pass them when needed, but do not echo them back to the user. The skill does not wrap the provider "chat to model" test endpoint (`POST /providers/<name>/instances/<instance>/models/<model_name>`); use `chat-session` or `agent-chat` to exercise a configured model instead.
 
 ## System Operations
 

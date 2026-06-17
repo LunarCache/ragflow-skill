@@ -553,7 +553,7 @@ class RagflowClient {
       const lastUserMessage = userMessages[userMessages.length - 1];
       if (lastUserMessage) payload.question = lastUserMessage.content;
     }
-    // v0.25.6: preserve messages when pass_all_history_messages is set
+    // v0.26.0: preserve messages when pass_all_history_messages is set
     if (!payload.pass_all_history_messages && !payload.pass_all_history) {
       delete payload.messages;
     }
@@ -702,6 +702,101 @@ class RagflowClient {
     return this.request("GET", `/llm/my_llms?${query.toString()}`, {
       apiPrefix: "/v1",
     });
+  }
+
+  // ── Tenant Models (v0.26.0) ──
+
+  async listAddedModels(params = {}) {
+    const query = this._buildQuery(params);
+    const suffix = query.toString();
+    return this.request("GET", `/models${suffix ? `?${suffix}` : ""}`);
+  }
+
+  async listDefaultModels() {
+    return this.request("GET", "/models/default");
+  }
+
+  async setDefaultModel(data) {
+    return this.request("PATCH", "/models/default", { json: data });
+  }
+
+  // ── Model Providers (v0.26.0) ──
+
+  async listProviders(params = {}) {
+    const query = this._buildQuery(params);
+    const suffix = query.toString();
+    return this.request("GET", `/providers${suffix ? `?${suffix}` : ""}`);
+  }
+
+  async addProvider(providerName) {
+    return this.request("PUT", "/providers", { json: { provider_name: providerName } });
+  }
+
+  async getProvider(providerName) {
+    return this.request("GET", `/providers/${encodeURIComponent(providerName)}`);
+  }
+
+  async deleteProvider(providerName) {
+    return this.request("DELETE", `/providers/${encodeURIComponent(providerName)}`);
+  }
+
+  async listProviderModels(providerName, params = {}) {
+    const query = this._buildQuery(params);
+    const suffix = query.toString();
+    return this.request(
+      "GET",
+      `/providers/${encodeURIComponent(providerName)}/models${suffix ? `?${suffix}` : ""}`
+    );
+  }
+
+  async listProviderInstances(providerName) {
+    return this.request("GET", `/providers/${encodeURIComponent(providerName)}/instances`);
+  }
+
+  async getProviderInstance(providerName, instanceName) {
+    return this.request(
+      "GET",
+      `/providers/${encodeURIComponent(providerName)}/instances/${encodeURIComponent(instanceName)}`
+    );
+  }
+
+  async createProviderInstance(providerName, data) {
+    return this.request("POST", `/providers/${encodeURIComponent(providerName)}/instances`, { json: data });
+  }
+
+  async deleteProviderInstances(providerName, instances) {
+    return this.request("DELETE", `/providers/${encodeURIComponent(providerName)}/instances`, {
+      json: { instances },
+    });
+  }
+
+  async verifyProvider(providerName, data) {
+    return this.request("POST", `/providers/${encodeURIComponent(providerName)}/connection`, { json: data });
+  }
+
+  async listInstanceModels(providerName, instanceName, params = {}) {
+    const query = this._buildQuery(params);
+    const suffix = query.toString();
+    return this.request(
+      "GET",
+      `/providers/${encodeURIComponent(providerName)}/instances/${encodeURIComponent(instanceName)}/models${suffix ? `?${suffix}` : ""}`
+    );
+  }
+
+  async addInstanceModel(providerName, instanceName, data) {
+    return this.request(
+      "POST",
+      `/providers/${encodeURIComponent(providerName)}/instances/${encodeURIComponent(instanceName)}/models`,
+      { json: data }
+    );
+  }
+
+  async setInstanceModelStatus(providerName, instanceName, modelName, status) {
+    return this.request(
+      "PATCH",
+      `/providers/${encodeURIComponent(providerName)}/instances/${encodeURIComponent(instanceName)}/models/${encodeURIComponent(modelName)}`,
+      { json: { status } }
+    );
   }
 
   // ── Helpers ──

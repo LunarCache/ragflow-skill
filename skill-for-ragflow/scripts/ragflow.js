@@ -136,7 +136,7 @@ function parseArgs(argv) {
     s: "similarity",
     w: "vectorWeight",
   };
-  const multiKeys = new Set(["files", "ids", "docIds", "chunkIds", "datasets", "suffix", "types", "run", "tags"]);
+  const multiKeys = new Set(["files", "ids", "docIds", "chunkIds", "datasets", "suffix", "types", "run", "tags", "instances"]);
   while (i < argv.length) {
     if (argv[i].startsWith("-") && argv[i] !== "-") {
       const isLong = argv[i].startsWith("--");
@@ -365,11 +365,31 @@ function applyEmbeddedAgentPayloadOptions(data, opts) {
   if (opts.stream !== undefined) data.stream = boolOption(opts.stream);
 }
 
+const MAX_PAGE_SIZE = 100;
+let pageSizeWarned = false;
+
+// RAGFlow v0.26.0 hard-caps page_size at 100 on all list endpoints
+// (validate_rest_api_page_size raises on larger values). Clamp client-side
+// and warn once so oversized requests do not error out on the server.
+function clampPageSize(value) {
+  const n = Number(value);
+  if (Number.isFinite(n) && n > MAX_PAGE_SIZE) {
+    if (!pageSizeWarned) {
+      warn(`page_size capped at ${MAX_PAGE_SIZE} (RAGFlow v0.26.0 server limit)`);
+      pageSizeWarned = true;
+    }
+    return MAX_PAGE_SIZE;
+  }
+  return n;
+}
+
 function buildParams(opts, map) {
   const params = {};
   for (const [optKey, paramKey, transform] of map) {
     if (opts[optKey] !== undefined) {
-      params[paramKey] = transform ? transform(opts[optKey]) : opts[optKey];
+      let value = transform ? transform(opts[optKey]) : opts[optKey];
+      if (paramKey === "page_size") value = clampPageSize(value);
+      params[paramKey] = value;
     }
   }
   return params;
@@ -668,7 +688,7 @@ async function retrieve(opts) {
     params.dataset_ids = listValue(opts.datasets);
   }
   if (opts.similarity) params.similarity_threshold = Number(opts.similarity);
-  if (opts.topN) params.page_size = Number(opts.topN);
+  if (opts.topN) params.page_size = clampPageSize(opts.topN);
   if (opts.topK) params.top_k = Number(opts.topK);
   if (opts.vectorWeight) params.vector_similarity_weight = Number(opts.vectorWeight);
   if (opts.rerank) params.rerank_id = opts.rerank;
@@ -1211,6 +1231,188 @@ async function listModels(opts) {
   json({ groups, total: totalModels });
 }
 
+// ── Tenant Models (v0.26.0) ──
+
+async function listAddedModels(opts) {
+  const client = createClient();
+  const params = {};
+  if (opts.type) params.type = opts.type;
+  info("Fetching added models...");
+  const result = await client.listAddedModels(params);
+  ok("Added models fetched");
+  json(result);
+}
+
+async function listDefaultModels() {
+  const client = createClient();
+  info("Fetching default models...");
+  const result = await client.listDefaultModels();
+  ok("Default models fetched");
+  json(result);
+}
+
+async function setDefaultModel(opts) {
+  const client = createClient();
+  const modelType = requireOpt(opts, "modelType");
+  const data = { model_type: modelType };
+  if (opts.modelProvider) data.model_provider = opts.modelProvider;
+  if (opts.modelInstance) data.model_instance = opts.modelInstance;
+  if (opts.modelName) data.model_name = opts.modelName;
+  info(`Setting default ${modelType} model...`);
+  const result = await client.setDefaultModel(data);
+  ok("Default model updated");
+  json(result);
+}
+
+// ── Model Providers (v0.26.0) ──
+
+async function listProviders(opts) {
+  const client = createClient();
+  const params = {};
+  if (opts.available) params.available = "true";
+  info(opts.available ? "Fetching available providers..." : "Fetching configured providers...");
+  const result = await client.listProviders(params);
+  ok("Providers fetched");
+  json(result);
+}
+
+async function getProvider(opts) {
+  const client = createClient();
+  const name = requireOpt(opts, "name");
+  info(`Fetching provider ${name}...`);
+  const result = await client.getProvider(name);
+  ok("Provider fetched");
+  json(result);
+}
+
+async function addProvider(opts) {
+  const client = createClient();
+  const name = requireOpt(opts, "name");
+  info(`Adding provider ${name}...`);
+  const result = await client.addProvider(name);
+  ok(`Provider added: ${name}`);
+  json(result);
+}
+
+async function deleteProvider(opts) {
+  const client = createClient();
+  const name = requireOpt(opts, "name");
+  info(`Removing provider ${name}...`);
+  const result = await client.deleteProvider(name);
+  ok(`Provider removed: ${name}`);
+  json(result);
+}
+
+async function listProviderModels(opts) {
+  const client = createClient();
+  const name = requireOpt(opts, "name");
+  const params = {};
+  if (opts.apiKey) params.api_key = opts.apiKey;
+  if (opts.baseUrl) params.base_url = opts.baseUrl;
+  info(`Fetching available models for provider ${name}...`);
+  const result = await client.listProviderModels(name, params);
+  ok("Provider models fetched");
+  json(result);
+}
+
+async function listProviderInstances(opts) {
+  const client = createClient();
+  const name = requireOpt(opts, "name");
+  info(`Fetching instances for provider ${name}...`);
+  const result = await client.listProviderInstances(name);
+  ok("Provider instances fetched");
+  json(result);
+}
+
+async function getProviderInstance(opts) {
+  const client = createClient();
+  const name = requireOpt(opts, "name");
+  const instance = requireOpt(opts, "instance");
+  info(`Fetching instance ${instance} for provider ${name}...`);
+  const result = await client.getProviderInstance(name, instance);
+  ok("Provider instance fetched");
+  json(result);
+}
+
+async function createProviderInstance(opts) {
+  const client = createClient();
+  const name = requireOpt(opts, "name");
+  const data = {
+    instance_name: requireOpt(opts, "instance"),
+    api_key: requireOpt(opts, "apiKey"),
+  };
+  if (opts.baseUrl) data.base_url = opts.baseUrl;
+  if (opts.region) data.region = opts.region;
+  if (opts.modelInfo) data.model_info = jsonOption(opts.modelInfo, "--model-info");
+  info(`Creating instance ${data.instance_name} for provider ${name}...`);
+  const result = await client.createProviderInstance(name, data);
+  ok(`Provider instance created: ${data.instance_name}`);
+  json(result);
+}
+
+async function deleteProviderInstances(opts) {
+  const client = createClient();
+  const name = requireOpt(opts, "name");
+  const instances = uniqueList(requireOpt(opts, "instances"));
+  info(`Removing ${instances.length} instance(s) from provider ${name}...`);
+  const result = await client.deleteProviderInstances(name, instances);
+  ok("Provider instances removed");
+  json(result);
+}
+
+async function verifyProvider(opts) {
+  const client = createClient();
+  const name = requireOpt(opts, "name");
+  const data = { api_key: requireOpt(opts, "apiKey") };
+  if (opts.baseUrl) data.base_url = opts.baseUrl;
+  if (opts.region) data.region = opts.region;
+  if (opts.modelInfo) data.model_info = jsonOption(opts.modelInfo, "--model-info");
+  info(`Testing connection to provider ${name}...`);
+  const result = await client.verifyProvider(name, data);
+  ok("Provider connection verified");
+  json(result);
+}
+
+async function listInstanceModels(opts) {
+  const client = createClient();
+  const name = requireOpt(opts, "name");
+  const instance = requireOpt(opts, "instance");
+  const params = {};
+  if (opts.supported) params.supported = "true";
+  info(`Fetching models for ${name}/${instance}...`);
+  const result = await client.listInstanceModels(name, instance, params);
+  ok("Instance models fetched");
+  json(result);
+}
+
+async function addInstanceModel(opts) {
+  const client = createClient();
+  const name = requireOpt(opts, "name");
+  const instance = requireOpt(opts, "instance");
+  const data = {
+    model_name: requireOpt(opts, "modelName"),
+    model_type: requireOpt(opts, "modelType"),
+  };
+  if (opts.maxTokens) data.max_tokens = Number(opts.maxTokens);
+  if (opts.extra) data.extra = jsonOption(opts.extra, "--extra");
+  info(`Adding model ${data.model_name} to ${name}/${instance}...`);
+  const result = await client.addInstanceModel(name, instance, data);
+  ok(`Model added: ${data.model_name}`);
+  json(result);
+}
+
+async function setModelStatus(opts) {
+  const client = createClient();
+  const name = requireOpt(opts, "name");
+  const instance = requireOpt(opts, "instance");
+  const modelName = requireOpt(opts, "modelName");
+  const status = requireOpt(opts, "status");
+  info(`Setting status of ${modelName} to ${status}...`);
+  const result = await client.setInstanceModelStatus(name, instance, modelName, status);
+  ok("Model status updated");
+  json(result);
+}
+
 // ── RAPTOR ──
 
 async function runRaptor(opts) {
@@ -1339,6 +1541,23 @@ const COMMANDS = {
   "embed-agent-chat":  { fn: embedAgentChat,   group: "Embed",     desc: "Chat through embedded agentbot route" },
   // LLM Models
   "list-models":       { fn: listModels,       group: "Models",    desc: "List available LLM models" },
+  "list-added-models": { fn: listAddedModels,  group: "Models",    desc: "List tenant added models" },
+  "list-default-models": { fn: listDefaultModels, group: "Models", desc: "List tenant default models" },
+  "set-default-model": { fn: setDefaultModel,   group: "Models",    desc: "Set or clear a default model" },
+  // Model Providers
+  "list-providers":    { fn: listProviders,    group: "Provider",  desc: "List configured or available providers" },
+  "get-provider":      { fn: getProvider,      group: "Provider",  desc: "Get provider details" },
+  "add-provider":      { fn: addProvider,      group: "Provider",  desc: "Add a provider for the tenant" },
+  "delete-provider":   { fn: deleteProvider,   group: "Provider",  desc: "Remove a provider" },
+  "list-provider-models": { fn: listProviderModels, group: "Provider", desc: "List a provider's available models" },
+  "list-provider-instances": { fn: listProviderInstances, group: "Provider", desc: "List provider instances" },
+  "get-provider-instance": { fn: getProviderInstance, group: "Provider", desc: "Get a provider instance" },
+  "create-provider-instance": { fn: createProviderInstance, group: "Provider", desc: "Create a provider instance (API key)" },
+  "delete-provider-instances": { fn: deleteProviderInstances, group: "Provider", desc: "Remove provider instances" },
+  "verify-provider":   { fn: verifyProvider,   group: "Provider",  desc: "Test a provider connection / API key" },
+  "list-instance-models": { fn: listInstanceModels, group: "Provider", desc: "List models on a provider instance" },
+  "add-instance-model": { fn: addInstanceModel, group: "Provider", desc: "Add a model to a provider instance" },
+  "set-model-status":  { fn: setModelStatus,   group: "Provider",  desc: "Enable or disable an instance model" },
   // Metadata / System
   "metadata-summary":  { fn: metadataSummary,  group: "Document",  desc: "Summarize document metadata" },
   "system-version":    { fn: systemVersion,    group: "System",    desc: "Get system version" },
@@ -1420,6 +1639,21 @@ ${C.bold}Common Options:${C.reset}
     --include-details   Include detailed model info
     --group-by          Group models by type/factory
     --all               Include unavailable models
+    --type              Model type filter (list-added-models)
+    --model-type        Model type (set-default-model, add-instance-model)
+    --model-provider    Provider name (set-default-model)
+    --model-instance    Instance name (set-default-model)
+    --model-name        Model name (provider model commands)
+    --available         List system-available providers (list-providers)
+    --instance          Provider instance name
+    --instances         Provider instance names (multiple values)
+    --api-key           Provider API key (create-provider-instance, verify-provider)
+    --base-url          Provider base URL
+    --region            Provider region
+    --model-info        Provider model_info JSON (provider instance commands)
+    --extra             Model extra config JSON (add-instance-model)
+    --supported         List supported models only (list-instance-models)
+    --status            Model status (set-model-status)
     --parser-config     Parser configuration (JSON)
     --prompt-config     Chat prompt configuration (JSON or @file)
     --pkg-name          Log package name

@@ -56,14 +56,16 @@ test("repo docs do not keep stale branding or unreadable publishing guidance", (
   assert.doesNotMatch(publishing, /鍙|鏈|ClawHub slug锛/);
 });
 
-test("SKILL.md constraints reference v0.25.6", () => {
+test("SKILL.md constraints reference v0.26.0", () => {
   const skill = read(path.join("skill-for-ragflow", "SKILL.md"));
 
-  // Assert Key Constraints section references v0.25.6
-  assert.match(skill, /Use v0\.25\.6 route shapes/, "SKILL.md constraints should reference v0.25.6 route shapes");
-  assert.match(skill, /v0\.25\.6 route/, "SKILL.md constraints should reference v0.25.6 routes");
+  // Assert Key Constraints section references v0.26.0
+  assert.match(skill, /Use v0\.26\.0 route shapes/, "SKILL.md constraints should reference v0.26.0 route shapes");
+  assert.match(skill, /v0\.26\.0 route/, "SKILL.md constraints should reference v0.26.0 routes");
   // Assert pass_all_history_messages constraint is documented
   assert.match(skill, /pass.all.history/, "SKILL.md constraints should mention pass-all-history behavior");
+  // Assert the v0.26.0 page_size cap is documented
+  assert.match(skill, /page_size/, "SKILL.md constraints should document the page_size cap");
 });
 
 test("SKILL.md Quick Command Reference includes new commands", () => {
@@ -135,7 +137,30 @@ test("new command names documented in COMMANDS.md", () => {
   assert.match(commands, /trace-raptor/, "COMMANDS.md should document trace-raptor command");
 });
 
-test("version string consistency: all docs reference v0.25.6, not v0.25.2", () => {
+test("v0.26.0 provider/model commands documented in SKILL.md and COMMANDS.md", () => {
+  const skill = read(path.join("skill-for-ragflow", "SKILL.md"));
+  const commands = read(path.join("skill-for-ragflow", "references", "COMMANDS.md"));
+  const api = read(path.join("skill-for-ragflow", "references", "API.md"));
+
+  for (const cmd of [
+    "list-providers",
+    "create-provider-instance",
+    "verify-provider",
+    "add-instance-model",
+    "set-model-status",
+    "list-added-models",
+    "set-default-model",
+  ]) {
+    assert.match(skill, new RegExp(cmd), `SKILL.md should reference ${cmd}`);
+    assert.match(commands, new RegExp(cmd), `COMMANDS.md should document ${cmd}`);
+  }
+
+  // Assert the new client methods are documented in API.md
+  assert.match(api, /createProviderInstance/, "API.md should document createProviderInstance");
+  assert.match(api, /setDefaultModel/, "API.md should document setDefaultModel");
+});
+
+test("version string consistency: all docs reference v0.26.0, not older versions", () => {
   const skill = read(path.join("skill-for-ragflow", "SKILL.md"));
   const commands = read(path.join("skill-for-ragflow", "references", "COMMANDS.md"));
   const api = read(path.join("skill-for-ragflow", "references", "API.md"));
@@ -143,14 +168,19 @@ test("version string consistency: all docs reference v0.25.6, not v0.25.2", () =
   const troubleshooting = read(path.join("skill-for-ragflow", "references", "TROUBLESHOOTING.md"));
   const openai = read(path.join("skill-for-ragflow", "agents", "openai.yaml"));
 
-  // Assert no file contains v0.25.2
-  assert.doesNotMatch(skill, /v0\.25\.2/, "SKILL.md should not reference v0.25.2");
-  assert.doesNotMatch(commands, /v0\.25\.2/, "COMMANDS.md should not reference v0.25.2");
-  assert.doesNotMatch(api, /v0\.25\.2/, "API.md should not reference v0.25.2");
-  assert.doesNotMatch(agentGuide, /v0\.25\.2/, "AGENT_GUIDE.md should not reference v0.25.2");
-  assert.doesNotMatch(troubleshooting, /v0\.25\.2/, "TROUBLESHOOTING.md should not reference v0.25.2");
-  assert.doesNotMatch(openai, /v0\.25\.2/, "openai.yaml should not reference v0.25.2");
+  // Assert no skill file still references the previous versions
+  for (const [name, content] of [
+    ["SKILL.md", skill],
+    ["COMMANDS.md", commands],
+    ["API.md", api],
+    ["AGENT_GUIDE.md", agentGuide],
+    ["TROUBLESHOOTING.md", troubleshooting],
+    ["openai.yaml", openai],
+  ]) {
+    assert.doesNotMatch(content, /v0\.25\.2/, `${name} should not reference v0.25.2`);
+    assert.doesNotMatch(content, /0\.25\.6/, `${name} should not reference v0.25.6`);
+  }
 
-  // Assert SKILL.md references v0.25.6 in description
-  assert.match(skill, /v0\.25\.6/, "SKILL.md description should reference v0.25.6");
+  // Assert SKILL.md references v0.26.0 in description
+  assert.match(skill, /v0\.26\.0/, "SKILL.md description should reference v0.26.0");
 });

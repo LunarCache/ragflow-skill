@@ -2,7 +2,7 @@
 
 Read this file only when you need to author, debug, or review a RAGFlow Agent/Canvas DSL. For CLI syntax, read [COMMANDS.md](COMMANDS.md). For SDK request and response shapes, read [API.md](API.md). For failures and recovery steps, read [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
-This guide distills the current RAGFlow v0.25.6 agent behavior into practical schema rules, minimal examples, and failure patterns you can use directly.
+This guide distills the current RAGFlow v0.26.0 agent behavior into practical schema rules, minimal examples, and failure patterns you can use directly.
 
 ## Contents
 
@@ -204,7 +204,7 @@ Most variable failures come from ids, output names, or top-level fields not lini
 - `top_k`
 
 If you want an explicit retrieval stage on the canvas, start from `02-retrieval-message.json`. If you want retrieval as an LLM tool, start from `03-tool-agent.json`.
-As of v0.25.6, metadata filters are correctly reused across canvas executions even when node state is modified, fixing an issue where filters could be lost during iterative debugging.
+As of v0.26.0, metadata filters are correctly reused across canvas executions even when node state is modified, fixing an issue where filters could be lost during iterative debugging.
 
 ### Agent
 
@@ -224,7 +224,7 @@ As of v0.25.6, metadata filters are correctly reused across canvas executions ev
 ```
 
 Do not model tools here as separate top-level `Tool` nodes. For this skill, prefer the embedded structure shown in `03-tool-agent.json`.
-Starting with v0.25.6, `Agent` nodes can emit structured JSON output directly into the `structured` field when a JSON schema is provided, allowing downstream nodes to access fields without manual string parsing.
+`Agent` nodes can emit structured JSON output directly into the `structured` field when a JSON schema is provided, allowing downstream nodes to access fields without manual string parsing.
 
 ### Iteration / IterationItem
 
@@ -246,9 +246,9 @@ Two practical constraints matter here:
 
 When `Begin.mode = "Webhook"`, the server reads these extra fields:
 
-### Browser (v0.25.6)
+### Browser
 
-`Browser` is a new component type that enables AI-driven browser automation within agent workflows. It allows agents to navigate web pages, extract content, and interact with browser elements programmatically. Use it when the agent needs to access live web data or perform web-based tasks as part of its workflow.
+`Browser` is a component type that enables AI-driven browser automation within agent workflows. It allows agents to navigate web pages, extract content, and interact with browser elements programmatically. Use it when the agent needs to access live web data or perform web-based tasks as part of its workflow.
 
 When `Begin.mode = "Webhook"`, the server reads these extra fields:
 

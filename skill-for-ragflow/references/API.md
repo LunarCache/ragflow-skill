@@ -86,7 +86,7 @@ await client.updateDocument("<dataset_id>", "<doc_id>", {
 await client.deleteDocuments("<dataset_id>", ["<doc_id1>", "<doc_id2>"]);
 ```
 
-RAGFlow v0.25.6 defines document updates as `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. `updateDocument()` sends that request directly.
+RAGFlow v0.26.0 defines document updates as `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. `updateDocument()` sends that request directly.
 
 You can also filter documents by metadata:
 
@@ -115,7 +115,7 @@ const doc = await client.downloadDocument(datasetId, documentId);
 // Download by document ID
 const doc = await client.downloadDocumentById(documentId);
 
-// Preview a document inline (v0.25.6)
+// Preview a document inline (v0.26.0)
 const preview = await client.previewDocument(documentId);
 ```
 
@@ -318,7 +318,7 @@ const sessionAnswerFromMessages = await client.chatSession("<chat_id>", "<sessio
 });
 ```
 
-`chatSession()` uses `POST /api/v1/chat/completions` with `chat_id` and `session_id` in the JSON body. In v0.25.6, `conversation_id` is accepted as an alias for `session_id`. By default, only the latest user message is appended to the stored history. Set `pass_all_history_messages: true` to replace the entire history with the submitted messages array.
+`chatSession()` uses `POST /api/v1/chat/completions` with `chat_id` and `session_id` in the JSON body. In v0.26.0, `conversation_id` is accepted as an alias for `session_id`. By default, only the latest user message is appended to the stored history. Set `pass_all_history_messages: true` to replace the entire history with the submitted messages array.
 
 ## Agent
 
@@ -426,9 +426,76 @@ const models = await client.listModels({ include_details: true });
 // Returns: { groups: [...], total: <n> }
 ```
 
-RAGFlow v0.25.6 exposes model discovery at `/v1/llm/my_llms`. Authentication uses `RAGFLOW_API_KEY`.
+RAGFlow v0.26.0 exposes model discovery at `/v1/llm/my_llms`. Authentication uses `RAGFLOW_API_KEY`.
 
 Use model names plus provider suffixes when creating resources, for example `qwen-turbo@Tongyi-Qianwen` for `llm_id` and `text-embedding-v4@Tongyi-Qianwen` for `embedding_model`. Some deployments return numeric `id` fields from `/v1/llm/my_llms`; those are server row IDs and should not be sent as `llm_id`.
+
+## Tenant Models (v0.26.0)
+
+These methods use the `/api/v1/models` routes and authenticate with `RAGFLOW_API_KEY`.
+
+```javascript
+// List the tenant's added models, optionally filtered by type
+const added = await client.listAddedModels({ type: "chat" });
+// GET /api/v1/models?type=chat -> { models: [...] }
+
+// List the tenant's default models
+const defaults = await client.listDefaultModels();
+// GET /api/v1/models/default -> { default_models: [...] }
+
+// Set (or clear) the default model for a type
+await client.setDefaultModel({
+  model_type: "chat",          // required: chat | embedding | rerank | asr | vision | tts | ocr
+  model_provider: "OpenAI",    // omit provider/instance/name to clear the default
+  model_instance: "default",
+  model_name: "gpt-4o",
+});
+// PATCH /api/v1/models/default
+```
+
+## Model Providers (v0.26.0)
+
+RAGFlow v0.26.0 adds provider/instance/model management under `/api/v1/providers`. All methods authenticate
+with `RAGFLOW_API_KEY`. Path segments are URL-encoded, so model identifiers containing `@` or `/` are handled
+automatically.
+
+```javascript
+// List configured providers, or system-available providers with { available: true }
+await client.listProviders({ available: true });        // GET /api/v1/providers?available=true
+await client.getProvider("OpenAI");                      // GET /api/v1/providers/OpenAI
+await client.addProvider("OpenAI");                      // PUT /api/v1/providers { provider_name }
+await client.deleteProvider("OpenAI");                   // DELETE /api/v1/providers/OpenAI
+
+// Discover a provider's models (some providers fetch a live list from the remote API)
+await client.listProviderModels("OpenAI", { api_key: "sk-...", base_url: "" });
+
+// Instances hold a set of credentials (multiple API keys per provider are supported)
+await client.listProviderInstances("OpenAI");
+await client.getProviderInstance("OpenAI", "default");
+await client.createProviderInstance("OpenAI", {
+  instance_name: "default",    // required
+  api_key: "sk-...",           // required
+  base_url: "",
+  region: "",
+  model_info: [],
+});                                                       // POST /api/v1/providers/OpenAI/instances
+await client.deleteProviderInstances("OpenAI", ["default"]);
+
+// Test a provider connection / API key without persisting an instance
+await client.verifyProvider("OpenAI", { api_key: "sk-...", base_url: "", region: "default" });
+
+// Manage the models on an instance
+await client.listInstanceModels("OpenAI", "default", { supported: true });
+await client.addInstanceModel("OpenAI", "default", {
+  model_name: "gpt-4o",        // required
+  model_type: "chat",          // required
+  max_tokens: 8192,
+  extra: {},
+});
+await client.setInstanceModelStatus("OpenAI", "default", "gpt-4o", "enable"); // PATCH .../models/<name>
+```
+
+Treat `api_key` values as sensitive: pass them in, but do not echo them back to the user.
 
 ## System
 
