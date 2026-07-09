@@ -56,15 +56,15 @@ test("repo docs do not keep stale branding or unreadable publishing guidance", (
   assert.doesNotMatch(publishing, /鍙|鏈|ClawHub slug锛/);
 });
 
-test("SKILL.md constraints reference v0.26.0", () => {
+test("SKILL.md constraints reference v0.26.4", () => {
   const skill = read(path.join("skill-for-ragflow", "SKILL.md"));
 
-  // Assert Key Constraints section references v0.26.0
-  assert.match(skill, /Use v0\.26\.0 route shapes/, "SKILL.md constraints should reference v0.26.0 route shapes");
-  assert.match(skill, /v0\.26\.0 route/, "SKILL.md constraints should reference v0.26.0 routes");
+  // Assert Key Constraints section references v0.26.4
+  assert.match(skill, /Use v0\.26\.4 route shapes/, "SKILL.md constraints should reference v0.26.4 route shapes");
+  assert.match(skill, /v0\.26\.4 route/, "SKILL.md constraints should reference v0.26.4 routes");
   // Assert pass_all_history_messages constraint is documented
   assert.match(skill, /pass.all.history/, "SKILL.md constraints should mention pass-all-history behavior");
-  // Assert the v0.26.0 page_size cap is documented
+  // Assert the v0.26.4 page_size cap is documented
   assert.match(skill, /page_size/, "SKILL.md constraints should document the page_size cap");
 });
 
@@ -90,6 +90,9 @@ test("SKILL.md Quick Command Reference includes new commands", () => {
 
   // Assert Quick Command Reference table includes preview-document (v0.25.6)
   assert.match(skill, /preview-document/, "SKILL.md Quick Command Reference should include preview-document");
+  assert.match(skill, /ingest-documents/, "SKILL.md Quick Command Reference should include ingest-documents");
+  assert.match(skill, /get-document-graph/, "SKILL.md Quick Command Reference should include get-document-graph");
+  assert.match(skill, /delete-document-graph/, "SKILL.md Quick Command Reference should include delete-document-graph");
 });
 
 test("new API methods documented in API.md", () => {
@@ -102,6 +105,9 @@ test("new API methods documented in API.md", () => {
   // Assert download document methods are documented
   assert.match(api, /downloadDocument/, "API.md should document downloadDocument method");
   assert.match(api, /downloadDocumentById/, "API.md should document downloadDocumentById method");
+  assert.match(api, /ingestDocuments/, "API.md should document ingestDocuments method");
+  assert.match(api, /getDocumentStructureGraph/, "API.md should document getDocumentStructureGraph method");
+  assert.match(api, /deleteDocumentStructureGraph/, "API.md should document deleteDocumentStructureGraph method");
 
   // Assert connector methods are documented
   assert.match(api, /listConnectors/, "API.md should document listConnectors method");
@@ -124,6 +130,9 @@ test("new command names documented in COMMANDS.md", () => {
 
   // Assert download-document command is documented
   assert.match(commands, /download-document/, "COMMANDS.md should document download-document command");
+  assert.match(commands, /ingest-documents/, "COMMANDS.md should document ingest-documents command");
+  assert.match(commands, /get-document-graph/, "COMMANDS.md should document get-document-graph command");
+  assert.match(commands, /delete-document-graph/, "COMMANDS.md should document delete-document-graph command");
 
   // Assert connector commands are documented
   assert.match(commands, /list-connectors/, "COMMANDS.md should document list-connectors command");
@@ -137,7 +146,7 @@ test("new command names documented in COMMANDS.md", () => {
   assert.match(commands, /trace-raptor/, "COMMANDS.md should document trace-raptor command");
 });
 
-test("v0.26.0 provider/model commands documented in SKILL.md and COMMANDS.md", () => {
+test("v0.26.4 provider/model commands documented in SKILL.md and COMMANDS.md", () => {
   const skill = read(path.join("skill-for-ragflow", "SKILL.md"));
   const commands = read(path.join("skill-for-ragflow", "references", "COMMANDS.md"));
   const api = read(path.join("skill-for-ragflow", "references", "API.md"));
@@ -160,7 +169,7 @@ test("v0.26.0 provider/model commands documented in SKILL.md and COMMANDS.md", (
   assert.match(api, /setDefaultModel/, "API.md should document setDefaultModel");
 });
 
-test("version string consistency: all docs reference v0.26.0, not older versions", () => {
+test("version string consistency: all docs reference v0.26.4, not older versions", () => {
   const skill = read(path.join("skill-for-ragflow", "SKILL.md"));
   const commands = read(path.join("skill-for-ragflow", "references", "COMMANDS.md"));
   const api = read(path.join("skill-for-ragflow", "references", "API.md"));
@@ -181,6 +190,6 @@ test("version string consistency: all docs reference v0.26.0, not older versions
     assert.doesNotMatch(content, /0\.25\.6/, `${name} should not reference v0.25.6`);
   }
 
-  // Assert SKILL.md references v0.26.0 in description
-  assert.match(skill, /v0\.26\.0/, "SKILL.md description should reference v0.26.0");
+  // Assert SKILL.md references v0.26.4 in description
+  assert.match(skill, /v0\.26\.4/, "SKILL.md description should reference v0.26.4");
 });

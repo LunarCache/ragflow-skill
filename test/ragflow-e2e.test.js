@@ -54,7 +54,7 @@ function createStatefulMockServer() {
         ],
       },
     },
-    system: { version: "v0.25.2", logLevels: { ragflow: "INFO" } },
+    system: { version: "v0.26.4", logLevels: { ragflow: "INFO" } },
   };
   const counters = {
     dataset: 0,

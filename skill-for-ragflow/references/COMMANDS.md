@@ -43,7 +43,7 @@ On command failure with `--json`, the CLI exits non-zero and prints a structured
 | [RAG Assistant Operation](#rag-assistant-operation) | Create chat assistants, manage sessions, and run Q&A |
 | [Agent Operation](#agent-operation) | Create tool-capable agents, manage sessions, and run agent chat |
 | [Embedded Website Access](#embedded-website-access) | Generate iframe/widget code and call shared chatbots/agentbots |
-| [Discovery and Configuration](#discovery-and-configuration) | Inspect available LLM models, and manage model providers/instances (v0.26.0) |
+| [Discovery and Configuration](#discovery-and-configuration) | Inspect available LLM models, and manage model providers/instances (v0.26.4) |
 | [System Operations](#system-operations) | Read version and log-level settings |
 
 ## Knowledge Base Setup
@@ -59,7 +59,7 @@ node {baseDir}/scripts/ragflow.js update-dataset --id <id> --name "New Name"
 node {baseDir}/scripts/ragflow.js delete-datasets --ids <id1> <id2>
 ```
 
-When you provide `--embedding-model` to a real v0.26.0 server, use the tenant model identifier format `<model_name>@<provider>`, for example `text-embedding-v4@Tongyi-Qianwen`. Use `list-models` to discover available model/provider pairs.
+When you provide `--embedding-model` to a real v0.26.4 server, use the tenant model identifier format `<model_name>@<provider>`, for example `text-embedding-v4@Tongyi-Qianwen`. Use `list-models` to discover available model/provider pairs.
 
 Typical flow:
 
@@ -82,7 +82,7 @@ Create a connector.
 
 **Example**: `node ragflow.js create-connector --dataset <id> --config @connector.json --json`
 
-The connector `--config` is passed through verbatim, so new v0.26.0 connector types work without a CLI change. v0.26.0 adds connectors for OneDrive, Outlook, Microsoft Teams, Slack, SharePoint, Salesforce, and Azure Blob Storage, alongside the existing types (e.g. GitHub). Set the type and auth fields inside the config JSON.
+The connector `--config` is passed through verbatim, so new v0.26.4 connector types work without a CLI change. v0.26.4 adds connectors for OneDrive, Outlook, Microsoft Teams, Slack, SharePoint, Salesforce, and Azure Blob Storage, alongside the existing types (e.g. GitHub). Set the type and auth fields inside the config JSON.
 
 ### `get-connector`, `update-connector`, `delete-connector`
 
@@ -96,6 +96,8 @@ Use this section when the user needs to get files into a dataset or inspect docu
 ```bash
 node {baseDir}/scripts/ragflow.js upload-documents --dataset <id> --files ./doc1.pdf ./doc2.txt
 node {baseDir}/scripts/ragflow.js upload-documents --dataset <id> --files report.pdf=./tmp/task-output
+node {baseDir}/scripts/ragflow.js ingest-documents --doc-ids <doc_id1> <doc_id2> --run 1
+node {baseDir}/scripts/ragflow.js ingest-documents --doc-ids <doc_id1> --run 2
 node {baseDir}/scripts/ragflow.js list-documents --dataset <id> --metadata-condition @metadata_condition.json
 node {baseDir}/scripts/ragflow.js get-document --dataset <id> --id <doc_id>
 node {baseDir}/scripts/ragflow.js update-document --dataset <id> --id <doc_id> --name "New Name"
@@ -106,7 +108,9 @@ node {baseDir}/scripts/ragflow.js download-document --dataset <id> --id <doc_id>
 node {baseDir}/scripts/ragflow.js preview-document --id <doc_id>
 ```
 
-`update-document` follows the current v0.26.0 RAGFlow route and sends `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. It accepts `name`, `parser_config`, `chunk_method`, `enabled`, and `meta_fields`.
+`update-document` follows the current v0.26.4 RAGFlow route and sends `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. It accepts `name`, `parser_config`, `chunk_method`, `enabled`, and `meta_fields`.
+
+`ingest-documents` wraps `POST /api/v1/documents/ingest` for datasets configured with an ingestion pipeline. Use `--run 1` to start/rerun ingestion, `--run 2` to cancel ingestion, and `--delete` when rerunning should delete existing tasks and chunks first. Built-in chunking datasets should keep using `start-parsing` and `stop-parsing`.
 
 `list-documents` supports `metadata`, `metadata_condition`, `return_empty_metadata`, `orderby`, `desc`, `suffix`, `types`, and `run`.
 
@@ -142,8 +146,12 @@ node {baseDir}/scripts/ragflow.js list-chunks --dataset <id> --document <doc_id>
 node {baseDir}/scripts/ragflow.js add-chunk --dataset <id> --document <doc_id> --content "chunk content"
 node {baseDir}/scripts/ragflow.js update-chunk --dataset <id> --document <doc_id> --chunk <chunk_id> --content "updated content"
 node {baseDir}/scripts/ragflow.js delete-chunks --dataset <id> --document <doc_id> --chunk-ids <id1>
+node {baseDir}/scripts/ragflow.js get-document-graph --dataset <id> --document <doc_id>
+node {baseDir}/scripts/ragflow.js delete-document-graph --dataset <id> --document <doc_id>
 node {baseDir}/scripts/repro-delete-chunks.js
 ```
+
+`update-chunk` uses the current `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}/chunks/{chunk_id}` route. `get-document-graph` and `delete-document-graph` wrap the v0.26.4 document structure graph routes under `/structure/graph`.
 
 `add-chunk` writes directly to the document store and returns the generated chunk ID immediately. On Elasticsearch/OpenSearch-style stores, exact `GET` by ID can see a new chunk before search/delete-by-query can see it because insert uses the store refresh cycle. `delete-chunks` handles this by retrying the transient response `rm_chunk deleted chunks 0, expect N` only after an exact ID lookup confirms the target chunk still exists. Tune this with `RAGFLOW_DELETE_CHUNK_RETRIES` and `RAGFLOW_DELETE_CHUNK_RETRY_DELAY_MS`.
 
@@ -265,11 +273,14 @@ node {baseDir}/scripts/ragflow.js delete-sessions --chat <chat_id> --ids <sessio
 node {baseDir}/scripts/ragflow.js chat --chat <chat_id> --session <session_id> --question "Hello"
 node {baseDir}/scripts/ragflow.js chat-session --chat <chat_id> --session <session_id> --messages @session_messages.json
 node {baseDir}/scripts/ragflow.js chat-session --chat <chat_id> --session <session_id> --question "Hello"
+node {baseDir}/scripts/ragflow.js chat-session --chat <chat_id> --session <session_id> --question "Hello" --legacy
 ```
 
 `chat-session` uses `POST /api/v1/chat/completions` with `chat_id` and `session_id` in the body. When `--messages` is provided, the CLI extracts the last `role: "user"` message as `question`; use `--question` when you already have a single user prompt.
 
-`--pass-all-history` sets `pass_all_history_messages: true`, which replaces the entire stored history with the submitted messages array instead of appending only the latest message (the default behavior in v0.26.0).
+`--pass-all-history` sets `pass_all_history_messages: true`, which replaces the entire stored history with the submitted messages array instead of appending only the latest message (the default behavior in v0.26.4).
+
+`--legacy` forwards `legacy: true` to v0.26.4 chat completions. Use it only for callers that still expect cumulative streaming chunks with literal `<think>` tags instead of delta-style thinking markers.
 
 Use this path when the user wants multi-turn Q&A over documents without building a full agent workflow.
 
@@ -490,11 +501,11 @@ node {baseDir}/scripts/ragflow.js list-models --all
 
 This is usually the first stop when the user is troubleshooting model availability or deciding which model to use downstream.
 
-RAGFlow v0.26.0 exposes model discovery at `/v1/llm/my_llms`. Authentication uses `RAGFLOW_API_KEY`.
+RAGFlow v0.26.4 exposes model discovery at `/v1/llm/my_llms`. Authentication uses `RAGFLOW_API_KEY`.
 
 For create operations, use model names plus provider suffixes such as `qwen-turbo@Tongyi-Qianwen` or `text-embedding-v4@Tongyi-Qianwen`. If `list-models --include-details` shows numeric `id` fields, treat them as server row IDs, not values for `--llm-id` or `--embedding-model`.
 
-### Tenant models (v0.26.0)
+### Tenant models (v0.26.4)
 
 These commands use the `/api/v1/models` routes (separate from the legacy `list-models` discovery above).
 
@@ -506,9 +517,9 @@ These commands use the `/api/v1/models` routes (separate from the legacy `list-m
 
 `set-default-model` requires `--model-type` (one of `chat`, `embedding`, `rerank`, `asr`, `vision`, `tts`, `ocr`). Provide `--model-provider`, `--model-instance`, and `--model-name` to set a default; omit them to clear it.
 
-### Model providers (v0.26.0)
+### Model providers (v0.26.4)
 
-v0.26.0 adds provider/instance/model management under `/api/v1/providers`. An "instance" holds one set of credentials, and a provider can have multiple instances (multiple API keys).
+v0.26.4 adds provider/instance/model management under `/api/v1/providers`. An "instance" holds one set of credentials, and a provider can have multiple instances (multiple API keys).
 
 | Command | Purpose | Options |
 |---------|---------|---------|

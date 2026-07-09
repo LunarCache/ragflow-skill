@@ -340,6 +340,13 @@ class RagflowClient {
     return this.request("GET", `/documents/${documentId}/preview`);
   }
 
+  async ingestDocuments(documentIds, options = {}) {
+    const run = options.run !== undefined ? String(options.run) : "1";
+    const payload = { doc_ids: documentIds, run };
+    if (options.delete !== undefined) payload.delete = Boolean(options.delete);
+    return this.request("POST", "/documents/ingest", { json: payload });
+  }
+
   // ── Chunk / Parsing ──
 
   async startParsing(datasetId, documentIds) {
@@ -449,10 +456,18 @@ class RagflowClient {
 
   async updateChunk(datasetId, documentId, chunkId, data) {
     return this.request(
-      "PUT",
+      "PATCH",
       `/datasets/${datasetId}/documents/${documentId}/chunks/${chunkId}`,
       { json: data }
     );
+  }
+
+  async getDocumentStructureGraph(datasetId, documentId) {
+    return this.request("GET", `/datasets/${datasetId}/documents/${documentId}/structure/graph`);
+  }
+
+  async deleteDocumentStructureGraph(datasetId, documentId) {
+    return this.request("DELETE", `/datasets/${datasetId}/documents/${documentId}/structure/graph`);
   }
 
   // ── Retrieval ──
@@ -553,7 +568,7 @@ class RagflowClient {
       const lastUserMessage = userMessages[userMessages.length - 1];
       if (lastUserMessage) payload.question = lastUserMessage.content;
     }
-    // v0.26.0: preserve messages when pass_all_history_messages is set
+    // v0.26.4: preserve messages when pass_all_history_messages is set
     if (!payload.pass_all_history_messages && !payload.pass_all_history) {
       delete payload.messages;
     }
@@ -704,7 +719,7 @@ class RagflowClient {
     });
   }
 
-  // ── Tenant Models (v0.26.0) ──
+  // ── Tenant Models (v0.26.4) ──
 
   async listAddedModels(params = {}) {
     const query = this._buildQuery(params);
@@ -720,7 +735,7 @@ class RagflowClient {
     return this.request("PATCH", "/models/default", { json: data });
   }
 
-  // ── Model Providers (v0.26.0) ──
+  // ── Model Providers (v0.26.4) ──
 
   async listProviders(params = {}) {
     const query = this._buildQuery(params);

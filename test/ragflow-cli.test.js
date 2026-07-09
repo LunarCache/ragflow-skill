@@ -111,7 +111,7 @@ function createMockServer(options = {}) {
       }
 
       if (pathname === "/api/v1/system/version" && req.method === "GET") {
-        jsonResponse(res, "v0.25.2");
+        jsonResponse(res, "v0.26.4");
         return;
       }
       if (pathname === "/api/v1/system/config/log" && req.method === "GET") {
@@ -391,8 +391,10 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
     { args: ["wait-parsing", "--dataset", "ds1", "--doc-ids", "doc1", "--timeout", "1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/documents" } },
     { args: ["list-chunks", "--dataset", "ds1", "--document", "doc1", "--page", "1", "--page-size", "2", "--keywords", "risk", "--id", "chunk1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/documents/doc1/chunks", query: { page: 1, page_size: 2, keywords: "risk", id: "chunk1" } } },
     { args: ["add-chunk", "--dataset", "ds1", "--document", "doc1", "--content", "chunk text", "--keywords", "alpha,beta", "--json"], expect: { method: "POST", path: "/api/v1/datasets/ds1/documents/doc1/chunks", body: { content: "chunk text", important_keywords: ["alpha", "beta"] } } },
-    { args: ["update-chunk", "--dataset", "ds1", "--document", "doc1", "--chunk", "chunk1", "--content", "new text", "--json"], expect: { method: "PUT", path: "/api/v1/datasets/ds1/documents/doc1/chunks/chunk1", body: { content: "new text" } } },
+    { args: ["update-chunk", "--dataset", "ds1", "--document", "doc1", "--chunk", "chunk1", "--content", "new text", "--json"], expect: { method: "PATCH", path: "/api/v1/datasets/ds1/documents/doc1/chunks/chunk1", body: { content: "new text" } } },
     { args: ["delete-chunks", "--dataset", "ds1", "--document", "doc1", "--chunk-ids", "chunk1", "--json"], expect: { method: "DELETE", path: "/api/v1/datasets/ds1/documents/doc1/chunks", body: { chunk_ids: ["chunk1"] } } },
+    { args: ["get-document-graph", "--dataset", "ds1", "--document", "doc1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/documents/doc1/structure/graph" } },
+    { args: ["delete-document-graph", "--dataset", "ds1", "--document", "doc1", "--json"], expect: { method: "DELETE", path: "/api/v1/datasets/ds1/documents/doc1/structure/graph" } },
     {
       args: ["retrieve", "-q", "What is RAG?", "-d", "ds1", "ds2", "-s", "0.4", "-n", "3", "-k", "8", "-w", "0.7", "-r", "rerank1", "--keyword", "--kg", "--cross-langs", "en,zh", "--json"],
       expect: { method: "POST", path: "/api/v1/retrieval", body: { question: "What is RAG?", dataset_ids: ["ds1", "ds2"], similarity_threshold: 0.4, page_size: 3, top_k: 8, vector_similarity_weight: 0.7, rerank_id: "rerank1", keyword: true, use_kg: true, cross_languages: ["en", "zh"] } },
@@ -406,7 +408,7 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
     { args: ["list-sessions", "--chat", "chat1", "--page", "1", "--json"], expect: { method: "GET", path: "/api/v1/chats/chat1/sessions", query: { page: 1 } } },
     { args: ["create-session", "--chat", "chat1", "--name", "Session", "--json"], expect: { method: "POST", path: "/api/v1/chats/chat1/sessions", body: { name: "Session" } } },
     { args: ["delete-sessions", "--chat", "chat1", "--ids", "sess1", "--json"], expect: { method: "DELETE", path: "/api/v1/chats/chat1/sessions", body: { ids: ["sess1"] } } },
-    { args: ["chat", "--chat", "chat1", "--session", "sess1", "-q", "Hello", "--json"], expect: { method: "POST", path: "/api/v1/chat/completions", body: { chat_id: "chat1", question: "Hello", session_id: "sess1" } } },
+    { args: ["chat", "--chat", "chat1", "--session", "sess1", "-q", "Hello", "--legacy", "false", "--json"], expect: { method: "POST", path: "/api/v1/chat/completions", body: { chat_id: "chat1", question: "Hello", session_id: "sess1", legacy: false } } },
     { args: ["chat-session", "--chat", "chat1", "--session", "sess1", "--messages", `@${sessionMessages}`, "--llm-id", "model-a", "--temperature", "0.2", "--top-p", "0.9", "--frequency-penalty", "0.1", "--presence-penalty", "0.0", "--max-tokens", "128", "--json"], expect: { method: "POST", path: "/api/v1/chat/completions", body: { chat_id: "chat1", question: "Summarize the policy.", session_id: "sess1", llm_id: "model-a", temperature: 0.2, top_p: 0.9, frequency_penalty: 0.1, presence_penalty: 0, max_tokens: 128 } } },
     { args: ["list-agents", "--page", "1", "--page-size", "2", "--name", "Agent", "--json"], expect: { method: "GET", path: "/api/v1/agents", query: { page: 1, page_size: 2, title: "Agent" } } },
     { args: ["create-agent", "--title", "Agent", "--dsl", `@${dsl}`, "--description", "Desc", "--json"], expect: { method: "POST", path: "/api/v1/agents", body: { title: "Agent", description: "Desc", dsl: canonicalDsl } } },
@@ -441,17 +443,19 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
     { args: ["trace-raptor", "--dataset", "ds1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/trace_raptor" } },
     // chat/agent session features
     { args: ["preview-document", "--id", "doc1", "--json"], expect: { method: "GET", path: "/api/v1/documents/doc1/preview" } },
-    // v0.26.0 page_size cap: oversized --page-size is clamped to 100
+    { args: ["ingest-documents", "--doc-ids", "doc1", "doc2", "--run", "1", "--delete", "--json"], expect: { method: "POST", path: "/api/v1/documents/ingest", body: { doc_ids: ["doc1", "doc2"], run: "1", delete: true } } },
+    // v0.26.4 page_size cap: oversized --page-size is clamped to 100
     { args: ["list-datasets", "--page-size", "500", "--json"], expect: { method: "GET", path: "/api/v1/datasets", query: { page_size: 100 } } },
     { args: ["chat-session", "--chat", "chat1", "--session", "sess1", "-q", "Hello", "--pass-all-history", "--json"], expect: { method: "POST", path: "/api/v1/chat/completions", body: { chat_id: "chat1", question: "Hello", session_id: "sess1", pass_all_history_messages: true } } },
+    { args: ["chat-session", "--chat", "chat1", "--session", "sess1", "-q", "Hello", "--legacy", "--json"], expect: { method: "POST", path: "/api/v1/chat/completions", body: { chat_id: "chat1", question: "Hello", session_id: "sess1", legacy: true } } },
     { args: ["create-agent", "--title", "Agent Canvas", "--dsl", inlineDsl, "--canvas-type", "flow", "--json"], expect: { method: "POST", path: "/api/v1/agents", body: { title: "Agent Canvas", dsl: canonicalDsl, canvas_type: "flow" } } },
     { args: ["update-agent", "--id", "agent1", "--title", "Agent2", "--dsl", `@${dsl}`, "--canvas-type", "flow", "--json"], expect: { method: "PUT", path: "/api/v1/agents/agent1", body: { title: "Agent2", dsl: canonicalDsl, canvas_type: "flow" } } },
     { args: ["agent-chat", "--agent", "agent1", "--session", "asess1", "-q", "Hello", "--chat-template-kwargs", "{\"temperature\": 0.5}", "--json"], expect: { method: "POST", path: "/api/v1/agents/chat/completions", body: { agent_id: "agent1", question: "Hello", session_id: "asess1", chat_template_kwargs: { temperature: 0.5 } } } },
-    // v0.26.0 tenant models
+    // v0.26.4 tenant models
     { args: ["list-added-models", "--type", "chat", "--json"], expect: { method: "GET", path: "/api/v1/models", query: { type: "chat" } } },
     { args: ["list-default-models", "--json"], expect: { method: "GET", path: "/api/v1/models/default" } },
     { args: ["set-default-model", "--model-type", "chat", "--model-provider", "OpenAI", "--model-instance", "default", "--model-name", "gpt-4o", "--json"], expect: { method: "PATCH", path: "/api/v1/models/default", body: { model_type: "chat", model_provider: "OpenAI", model_instance: "default", model_name: "gpt-4o" } } },
-    // v0.26.0 model providers
+    // v0.26.4 model providers
     { args: ["list-providers", "--available", "--json"], expect: { method: "GET", path: "/api/v1/providers", query: { available: "true" } } },
     { args: ["get-provider", "--name", "OpenAI", "--json"], expect: { method: "GET", path: "/api/v1/providers/OpenAI" } },
     { args: ["add-provider", "--name", "OpenAI", "--json"], expect: { method: "PUT", path: "/api/v1/providers", body: { provider_name: "OpenAI" } } },

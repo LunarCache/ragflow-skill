@@ -368,14 +368,14 @@ function applyEmbeddedAgentPayloadOptions(data, opts) {
 const MAX_PAGE_SIZE = 100;
 let pageSizeWarned = false;
 
-// RAGFlow v0.26.0 hard-caps page_size at 100 on all list endpoints
+// RAGFlow v0.26.4 hard-caps page_size at 100 on all list endpoints
 // (validate_rest_api_page_size raises on larger values). Clamp client-side
 // and warn once so oversized requests do not error out on the server.
 function clampPageSize(value) {
   const n = Number(value);
   if (Number.isFinite(n) && n > MAX_PAGE_SIZE) {
     if (!pageSizeWarned) {
-      warn(`page_size capped at ${MAX_PAGE_SIZE} (RAGFlow v0.26.0 server limit)`);
+      warn(`page_size capped at ${MAX_PAGE_SIZE} (RAGFlow v0.26.4 server limit)`);
       pageSizeWarned = true;
     }
     return MAX_PAGE_SIZE;
@@ -561,6 +561,18 @@ async function previewDocument(opts) {
 
 // ── Parsing ──
 
+async function ingestDocuments(opts) {
+  const client = createClient();
+  const docIds = uniqueList(requireOpt(opts, "docIds"));
+  const run = Array.isArray(opts.run) ? opts.run[0] : (opts.run || "1");
+  const options = { run };
+  if (opts.delete !== undefined) options.delete = boolOption(opts.delete);
+  info(`Submitting ingestion action ${run} for ${docIds.length} document(s)...`);
+  const result = await client.ingestDocuments(docIds, options);
+  ok("Document ingestion request submitted");
+  json(result);
+}
+
 async function startParsing(opts) {
   const client = createClient();
   const dataset = requireOpt(opts, "dataset");
@@ -675,7 +687,29 @@ async function updateChunk(opts) {
   json(result);
 }
 
-// ── Retrieval ──
+// Document structure graph
+
+async function getDocumentGraph(opts) {
+  const client = createClient();
+  const dataset = requireOpt(opts, "dataset");
+  const document = requireOpt(opts, "document");
+  info(`Fetching structure graph for document ${document}...`);
+  const result = await client.getDocumentStructureGraph(dataset, document);
+  ok("Document structure graph fetched");
+  json(result);
+}
+
+async function deleteDocumentGraph(opts) {
+  const client = createClient();
+  const dataset = requireOpt(opts, "dataset");
+  const document = requireOpt(opts, "document");
+  info(`Deleting structure graph for document ${document}...`);
+  const result = await client.deleteDocumentStructureGraph(dataset, document);
+  ok("Document structure graph deleted");
+  json(result);
+}
+
+// Retrieval
 
 async function retrieve(opts) {
   const client = createClient();
@@ -888,6 +922,7 @@ async function chat(opts) {
   const params = {};
   if (opts.stream) params.stream = true;
   if (opts.topN) params.top_n = Number(opts.topN);
+  if (opts.legacy !== undefined) params.legacy = boolOption(opts.legacy);
 
   info(`Asking: "${question}"`);
   const result = await client.chat(chatId, session, question, params);
@@ -915,6 +950,7 @@ async function chatSession(opts) {
   if (opts.presencePenalty !== undefined) data.presence_penalty = Number(opts.presencePenalty);
   if (opts.maxTokens !== undefined) data.max_tokens = Number(opts.maxTokens);
   if (opts.stream !== undefined) data.stream = opts.stream !== "false" && opts.stream !== false;
+  if (opts.legacy !== undefined) data.legacy = boolOption(opts.legacy);
   if (opts.passAllHistory) data.pass_all_history_messages = true;
   if (opts.messages) data.messages = jsonOption(opts.messages, "--messages");
   info(`Asking session: ${session}...`);
@@ -1231,7 +1267,7 @@ async function listModels(opts) {
   json({ groups, total: totalModels });
 }
 
-// ── Tenant Models (v0.26.0) ──
+// ── Tenant Models (v0.26.4) ──
 
 async function listAddedModels(opts) {
   const client = createClient();
@@ -1264,7 +1300,7 @@ async function setDefaultModel(opts) {
   json(result);
 }
 
-// ── Model Providers (v0.26.0) ──
+// ── Model Providers (v0.26.4) ──
 
 async function listProviders(opts) {
   const client = createClient();
@@ -1484,6 +1520,7 @@ const COMMANDS = {
   "delete-documents":  { fn: deleteDocuments,  group: "Document",  desc: "Delete documents" },
   "download-document": { fn: downloadDocument, group: "Document", desc: "Download a document" },
   "preview-document":  { fn: previewDocument,  group: "Document", desc: "Preview a document inline by ID" },
+  "ingest-documents":  { fn: ingestDocuments,  group: "Document", desc: "Start, cancel, or rerun ingestion-pipeline documents" },
   // Parsing
   "start-parsing":     { fn: startParsing,     group: "Parsing",   desc: "Start document parsing" },
   "stop-parsing":      { fn: stopParsing,      group: "Parsing",   desc: "Stop document parsing" },
@@ -1493,6 +1530,8 @@ const COMMANDS = {
   "add-chunk":         { fn: addChunk,         group: "Chunk",     desc: "Add a chunk" },
   "update-chunk":      { fn: updateChunk,      group: "Chunk",     desc: "Update a chunk" },
   "delete-chunks":     { fn: deleteChunks,     group: "Chunk",     desc: "Delete chunks" },
+  "get-document-graph": { fn: getDocumentGraph, group: "Chunk",    desc: "Get a document structure graph" },
+  "delete-document-graph": { fn: deleteDocumentGraph, group: "Chunk", desc: "Delete a document structure graph" },
   // Retrieval
   "retrieve":          { fn: retrieve,         group: "Retrieval", desc: "Retrieve from datasets" },
   // Connector
@@ -1587,6 +1626,7 @@ ${C.bold}Common Options:${C.reset}
     --dataset           Dataset ID
     --files             File paths, or display-name=path entries
     --doc-ids           Document IDs (multiple values)
+    --run               Ingestion action: 1=start/rerun, 2=cancel
     --document          Document ID
     --content           Chunk content
     --chunk-ids         Chunk IDs (multiple values)
@@ -1594,6 +1634,7 @@ ${C.bold}Common Options:${C.reset}
     --chat              Chat assistant ID
     --agent             Agent ID
     --session           Session ID
+    --legacy            Use legacy cumulative streaming format for chat completions
     --token-file        Read token from a file
     --token-stdin       Read token from stdin
     --beta, --auth      Embed auth beta token

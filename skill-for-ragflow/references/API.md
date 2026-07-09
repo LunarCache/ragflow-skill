@@ -86,7 +86,7 @@ await client.updateDocument("<dataset_id>", "<doc_id>", {
 await client.deleteDocuments("<dataset_id>", ["<doc_id1>", "<doc_id2>"]);
 ```
 
-RAGFlow v0.26.0 defines document updates as `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. `updateDocument()` sends that request directly.
+RAGFlow v0.26.4 defines document updates as `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. `updateDocument()` sends that request directly.
 
 You can also filter documents by metadata:
 
@@ -115,7 +115,7 @@ const doc = await client.downloadDocument(datasetId, documentId);
 // Download by document ID
 const doc = await client.downloadDocumentById(documentId);
 
-// Preview a document inline (v0.26.0)
+// Preview a document inline (v0.26.4)
 const preview = await client.previewDocument(documentId);
 ```
 
@@ -127,6 +127,12 @@ await client.startParsing("<dataset_id>", ["<doc_id1>"]);
 
 // Stop parsing
 await client.stopParsing("<dataset_id>", ["<doc_id1>"]);
+
+// Start/rerun ingestion for ingestion-pipeline datasets
+await client.ingestDocuments(["<doc_id1>"], { run: "1", delete: true });
+
+// Cancel ingestion for ingestion-pipeline datasets
+await client.ingestDocuments(["<doc_id1>"], { run: "2" });
 
 // Wait for parsing to complete (polls until DONE or FAIL)
 // Documents stuck in CANCEL keep polling until timeout.
@@ -159,7 +165,13 @@ await client.updateChunk("<dataset_id>", "<doc_id>", "<chunk_id>", {
 
 // Delete chunks by IDs
 await client.deleteChunks("<dataset_id>", "<doc_id>", ["<chunk_id1>"]);
+
+// Inspect or delete the v0.26.4 document structure graph
+const graph = await client.getDocumentStructureGraph("<dataset_id>", "<doc_id>");
+await client.deleteDocumentStructureGraph("<dataset_id>", "<doc_id>");
 ```
+
+`updateChunk()` uses `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}/chunks/{chunk_id}`. `ingestDocuments()` is for ingestion-pipeline datasets; use `startParsing()`/`stopParsing()` for the built-in chunking pipeline.
 
 `deleteChunks()` retries the transient `rm_chunk deleted chunks 0, expect N` response only after `getChunk()` confirms the target chunk still exists. This distinguishes document-store refresh delay from a genuinely missing chunk. Override with:
 
@@ -309,6 +321,12 @@ const sessionAnswer = await client.chatSession("<chat_id>", "<session_id>", {
   question: "Summarize the policy.",
 });
 
+// v0.26.4 legacy streaming compatibility
+const legacyAnswer = await client.chatSession("<chat_id>", "<session_id>", {
+  question: "Summarize the policy.",
+  legacy: true,
+});
+
 // Convenience form: the last user message becomes `question`
 const sessionAnswerFromMessages = await client.chatSession("<chat_id>", "<session_id>", {
   messages: [
@@ -318,7 +336,7 @@ const sessionAnswerFromMessages = await client.chatSession("<chat_id>", "<sessio
 });
 ```
 
-`chatSession()` uses `POST /api/v1/chat/completions` with `chat_id` and `session_id` in the JSON body. In v0.26.0, `conversation_id` is accepted as an alias for `session_id`. By default, only the latest user message is appended to the stored history. Set `pass_all_history_messages: true` to replace the entire history with the submitted messages array.
+`chatSession()` uses `POST /api/v1/chat/completions` with `chat_id` and `session_id` in the JSON body. In v0.26.4, `conversation_id` is accepted as an alias for `session_id`. By default, only the latest user message is appended to the stored history. Set `pass_all_history_messages: true` to replace the entire history with the submitted messages array. Set `legacy: true` only for callers that still expect the old cumulative streaming format.
 
 ## Agent
 
@@ -426,11 +444,11 @@ const models = await client.listModels({ include_details: true });
 // Returns: { groups: [...], total: <n> }
 ```
 
-RAGFlow v0.26.0 exposes model discovery at `/v1/llm/my_llms`. Authentication uses `RAGFLOW_API_KEY`.
+RAGFlow v0.26.4 exposes model discovery at `/v1/llm/my_llms`. Authentication uses `RAGFLOW_API_KEY`.
 
 Use model names plus provider suffixes when creating resources, for example `qwen-turbo@Tongyi-Qianwen` for `llm_id` and `text-embedding-v4@Tongyi-Qianwen` for `embedding_model`. Some deployments return numeric `id` fields from `/v1/llm/my_llms`; those are server row IDs and should not be sent as `llm_id`.
 
-## Tenant Models (v0.26.0)
+## Tenant Models (v0.26.4)
 
 These methods use the `/api/v1/models` routes and authenticate with `RAGFLOW_API_KEY`.
 
@@ -453,9 +471,9 @@ await client.setDefaultModel({
 // PATCH /api/v1/models/default
 ```
 
-## Model Providers (v0.26.0)
+## Model Providers (v0.26.4)
 
-RAGFlow v0.26.0 adds provider/instance/model management under `/api/v1/providers`. All methods authenticate
+RAGFlow v0.26.4 adds provider/instance/model management under `/api/v1/providers`. All methods authenticate
 with `RAGFLOW_API_KEY`. Path segments are URL-encoded, so model identifiers containing `@` or `/` are handled
 automatically.
 

@@ -835,7 +835,56 @@ test("chatSession deletes messages when pass_all_history_messages is absent", as
   }
 });
 
-// ── v0.26.0 provider / model management ──
+// ── v0.26.4 provider / model management ──
+
+test("v0.26.4 document and chunk client methods build correct method/url/body", async () => {
+  let last = null;
+  const server = http.createServer((req, res) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => {
+      const raw = Buffer.concat(chunks).toString("utf-8");
+      last = { method: req.method, url: req.url, body: raw ? JSON.parse(raw) : undefined };
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ code: 0, data: { ok: true } }));
+    });
+  });
+
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address();
+  const previousUrl = process.env.RAGFLOW_URL;
+  const previousKey = process.env.RAGFLOW_API_KEY;
+  process.env.RAGFLOW_URL = `http://127.0.0.1:${port}`;
+  process.env.RAGFLOW_API_KEY = "test-key";
+
+  try {
+    const client = createClient();
+
+    const checks = [
+      [() => client.ingestDocuments(["doc1"], { run: "1", delete: true }), "POST", "/api/v1/documents/ingest", { doc_ids: ["doc1"], run: "1", delete: true }],
+      [() => client.updateChunk("ds1", "doc1", "chunk1", { content: "new text" }), "PATCH", "/api/v1/datasets/ds1/documents/doc1/chunks/chunk1", { content: "new text" }],
+      [() => client.getDocumentStructureGraph("ds1", "doc1"), "GET", "/api/v1/datasets/ds1/documents/doc1/structure/graph", undefined],
+      [() => client.deleteDocumentStructureGraph("ds1", "doc1"), "DELETE", "/api/v1/datasets/ds1/documents/doc1/structure/graph", undefined],
+    ];
+
+    for (const [call, method, url, body] of checks) {
+      await call();
+      assert.equal(last.method, method, url);
+      assert.equal(last.url, url);
+      if (body === undefined) {
+        assert.equal(last.body, undefined, `${url} should not send a body`);
+      } else {
+        assert.deepEqual(last.body, body, url);
+      }
+    }
+  } finally {
+    if (previousUrl === undefined) delete process.env.RAGFLOW_URL;
+    else process.env.RAGFLOW_URL = previousUrl;
+    if (previousKey === undefined) delete process.env.RAGFLOW_API_KEY;
+    else process.env.RAGFLOW_API_KEY = previousKey;
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
 
 test("provider and model client methods build correct method/url/body", async () => {
   let last = null;

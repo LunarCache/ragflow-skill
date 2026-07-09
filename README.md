@@ -1,16 +1,24 @@
 # RAGFlow Skill
 
-A Codex/OpenCode skill for operating [RAGFlow](https://github.com/infiniflow/ragflow) v0.26.0 through a bundled Node.js CLI and API client.
+A Codex/OpenCode skill for operating [RAGFlow](https://github.com/infiniflow/ragflow) v0.26.4 through a bundled Node.js CLI and API client.
 
 ## Features
 
-- **Full RAGFlow v0.26.0 API coverage** - datasets, documents (tags, RAPTOR), parsing, chunks, retrieval, chat assistants, agents (structured output), embedded site access, model discovery, model providers, and connectors
+- **Full RAGFlow v0.26.4 API coverage** - datasets, documents (tags, ingestion pipeline, RAPTOR), parsing, chunks, retrieval, chat assistants, agents (structured output), embedded site access, model discovery, model providers, and connectors
 - **Zero dependencies** - pure Node.js, no npm install required
 - **JSON-first output** - `--json` flag for machine-readable output suitable for pipelines
 - **Robust error handling** - automatic retries for transient failures, structured error envelopes
 - **Comprehensive documentation** - command reference, API examples, troubleshooting guide
 
 ## Update Notes
+
+### v1.6.0 (RAGFlow v0.26.4)
+
+- Updated skill metadata and route-shape notes from v0.26.0 to v0.26.4.
+- Switched `update-chunk` to the official `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}/chunks/{chunk_id}` route.
+- Added `ingest-documents` for ingestion-pipeline datasets via `POST /api/v1/documents/ingest`.
+- Added `get-document-graph` and `delete-document-graph` for document structure graph inspection/cleanup.
+- Added `--legacy` forwarding for chat completion commands that need the old cumulative streaming format.
 
 ### v1.5.0 (RAGFlow v0.26.0)
 
@@ -128,9 +136,9 @@ ragflow-skill/
 | Category | Commands |
 |----------|----------|
 | **Dataset** | `create-dataset`, `list-datasets`, `get-dataset`, `update-dataset`, `delete-datasets` |
-| **Document** | `upload-documents`, `list-documents`, `get-document`, `update-document`, `delete-documents`, `metadata-summary` |
+| **Document** | `upload-documents`, `ingest-documents`, `list-documents`, `get-document`, `update-document`, `delete-documents`, `download-document`, `preview-document`, `metadata-summary` |
 | **Parsing** | `start-parsing`, `stop-parsing`, `wait-parsing` |
-| **Chunk** | `list-chunks`, `add-chunk`, `update-chunk`, `delete-chunks` |
+| **Chunk** | `list-chunks`, `add-chunk`, `update-chunk`, `delete-chunks`, `get-document-graph`, `delete-document-graph` |
 | **Retrieval** | `retrieve` |
 | **Chat** | `create-chat`, `list-chats`, `get-chat`, `update-chat`, `patch-chat`, `delete-chats` |
 | **Session** | `create-session`, `list-sessions`, `delete-sessions`, `chat`, `chat-session` |
@@ -220,7 +228,7 @@ const agentAnswer = await client.agentChat(agentId, agentSession.id, "Summarize 
 ## Requirements
 
 - **Node.js** 18+ (uses built-in `node:test` and `fetch`)
-- **RAGFlow** v0.26.0 server
+- **RAGFlow** v0.26.4 server
 
 ## License
 
