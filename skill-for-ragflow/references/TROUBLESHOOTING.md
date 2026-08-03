@@ -2,8 +2,8 @@
 
 | Problem | Cause | Solution |
 |---------|-------|----------|
-| `system-health` fails | The configured server is unavailable, the URL is wrong, or the API key cannot reach the health route | Check `RAGFLOW_URL`, then run `system-version`; inspect the structured error with `--json` |
-| `Unknown option: --...` | The CLI rejects typos and unsupported flags instead of silently ignoring them | Run `node scripts/ragflow.js --help` and use the documented kebab-case option |
+| `system-health` fails | The configured server is unavailable or one of its dependencies reports unhealthy | Check `RAGFLOW_URL` and inspect the structured response with `--json`; use `list-datasets --page-size 1 --json` to test authentication separately |
+| `Unknown option for <command>: --...` | The option is misspelled or does not apply to that command | Run `node scripts/ragflow.js --help` and use the documented kebab-case option |
 | "Model not authorized" | Requested model is not configured for this tenant, or the model/factory name does not match | Verify the model name, factory suffix, and tenant model settings; use a configured model from `list-models` |
 | "Embedding model identifier must follow `<model_name>@<provider>` format" | `create-dataset --embedding-model` used only the model name | Use a full identifier from `list-models`, for example `text-embedding-v4@Tongyi-Qianwen` |
 | `AttributeError("'int' object has no attribute 'split'")` from `create-chat` | A numeric model row ID from `list-models` was sent as `--llm-id` | Use `<model_name>@<provider>`, for example `qwen-turbo@Tongyi-Qianwen`, not the numeric `id` field |

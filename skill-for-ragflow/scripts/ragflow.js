@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 const fs = require("fs");
 const path = require("path");
-const { createClient } = require("../lib/api.js");
+const { createClient: createApiClient } = require("../lib/api.js");
 
 const args = process.argv.slice(2);
 const command = args[0];
 const outputMode = { jsonOnly: false };
+let activeOptionState = null;
 
 // ── Output helpers ──
 
@@ -111,6 +112,7 @@ function commandErrorJsonPayload(err) {
     payload.retries = retries;
     payload.delete_chunk_diagnostics = details;
   }
+  if (err.response !== undefined) payload.response = err.response;
   return payload;
 }
 
@@ -166,32 +168,41 @@ function parseArgs(argv) {
   return opts;
 }
 
-const KNOWN_OPTION_KEYS = new Set([
-  "agent", "all", "apiKey", "apiKeyFile", "auth", "available", "baseUrl", "beta",
-  "canvasType", "chat", "chatTemplateKwargs", "chunk", "chunkIds", "chunkMethod",
-  "config", "content", "conversationId", "crossLangs", "data", "dataset", "datasets",
-  "delete", "desc", "description", "docIds", "document", "dsl", "embeddingModel",
-  "enabled", "extra", "files", "frequencyPenalty", "groupBy", "help", "hideAvatar",
-  "id", "ids", "includeDetails", "inputs", "instance", "instances", "internet", "json",
-  "keyword", "keywords", "kg", "legacy", "level", "llm", "llmId", "locale", "maxTokens",
-  "messages", "metadata", "metadataCondition", "metaFields", "modelInfo", "modelInstance",
-  "modelName", "modelProvider", "modelType", "name", "orderby", "origin", "page", "pageSize",
-  "parserConfig", "passAllHistory", "permission", "pkgName", "presencePenalty", "prompt",
-  "promptConfig", "published", "question", "quote", "reasoning", "region", "release", "rerank",
-  "returnEmptyMetadata", "run", "session", "similarity", "similarityThreshold", "status", "stream",
-  "streaming", "suffix", "supported", "tags", "temperature", "theme", "timeout", "title", "token",
-  "tokenFile", "tokenStdin", "topK", "topN", "topP", "type", "types", "userId", "vectorWeight",
-  "visibleAvatar",
-]);
-
 function optionName(key) {
   return `--${key.replace(/([A-Z])/g, "-$1").toLowerCase()}`;
 }
 
+function trackOptions(rawOptions) {
+  const consumed = new Set();
+  const options = new Proxy(rawOptions, {
+    get(target, key, receiver) {
+      if (typeof key === "string") consumed.add(key);
+      return Reflect.get(target, key, receiver);
+    },
+  });
+  activeOptionState = { rawOptions, consumed };
+  return options;
+}
+
+function validateUnusedOptions() {
+  if (!activeOptionState) return;
+  const { rawOptions, consumed } = activeOptionState;
+  const unused = Object.keys(rawOptions).find((key) => key !== "_" && !consumed.has(key));
+  if (unused) throw new Error(`Unknown option for ${command}: ${optionName(unused)}`);
+}
+
 function validateOptions(opts) {
-  const unknown = Object.keys(opts).find((key) => key !== "_" && !KNOWN_OPTION_KEYS.has(key));
-  if (unknown) throw new Error(`Unknown option: ${optionName(unknown)}`);
   if (opts._.length) throw new Error(`Unexpected positional argument: ${opts._[0]}`);
+}
+
+function createClient(options = {}) {
+  const client = createApiClient(options);
+  const request = client.request.bind(client);
+  client.request = (...requestArgs) => {
+    validateUnusedOptions();
+    return request(...requestArgs);
+  };
+  return client;
 }
 
 function listValue(value) {
@@ -402,6 +413,28 @@ function applyEmbeddedAgentPayloadOptions(data, opts) {
   if (opts.userId) data.user_id = opts.userId;
   if (opts.published || opts.release) data.release = "true";
   if (opts.stream !== undefined) data.stream = boolOption(opts.stream);
+}
+
+function embedCodeOptions(opts) {
+  return {
+    agent: opts.agent,
+    auth: opts.auth,
+    beta: opts.beta,
+    chat: opts.chat,
+    data: opts.data,
+    embedType: opts.embedType,
+    hideAvatar: opts.hideAvatar,
+    locale: opts.locale,
+    origin: opts.origin,
+    published: opts.published,
+    release: opts.release,
+    streaming: opts.streaming,
+    theme: opts.theme,
+    token: opts.token,
+    type: opts.type,
+    userId: opts.userId,
+    visibleAvatar: opts.visibleAvatar,
+  };
 }
 
 const MAX_PAGE_SIZE = 100;
@@ -1232,22 +1265,25 @@ async function deleteSystemToken(opts) {
 
 async function embedCode(opts) {
   const client = createClient();
-  const tokenInfo = await embedBeta(client, opts);
-  const result = buildEmbedCode(opts, tokenInfo);
+  const embedOpts = embedCodeOptions(opts);
+  const tokenInfo = await embedBeta(client, embedOpts);
+  const result = buildEmbedCode(embedOpts, tokenInfo);
   ok(`Embed code generated for ${result.from} ${result.id}`);
   json(result);
 }
 
 async function embedInfo(opts) {
   const client = createClient();
+  const chatId = opts.chat;
+  const agentId = opts.agent;
   const tokenInfo = await embedBeta(client, opts);
   let result;
-  if (opts.chat && !opts.agent) {
-    info(`Fetching embedded chat info for ${opts.chat}...`);
-    result = await client.getEmbeddedChatInfo(opts.chat, tokenInfo.beta);
-  } else if (opts.agent && !opts.chat) {
-    info(`Fetching embedded agent inputs for ${opts.agent}...`);
-    result = await client.getEmbeddedAgentInputs(opts.agent, tokenInfo.beta);
+  if (chatId && !agentId) {
+    info(`Fetching embedded chat info for ${chatId}...`);
+    result = await client.getEmbeddedChatInfo(chatId, tokenInfo.beta);
+  } else if (agentId && !chatId) {
+    info(`Fetching embedded agent inputs for ${agentId}...`);
+    result = await client.getEmbeddedAgentInputs(agentId, tokenInfo.beta);
   } else {
     throw new Error("Provide exactly one of --chat or --agent");
   }
@@ -1259,9 +1295,9 @@ async function embedChat(opts) {
   const client = createClient();
   const chatId = requireOpt(opts, "chat");
   const question = requireOpt(opts, "question");
-  const tokenInfo = await embedBeta(client, opts);
   const data = { question };
   applyEmbeddedChatPayloadOptions(data, opts);
+  const tokenInfo = await embedBeta(client, opts);
   if (!data.session_id) {
     info("Creating embedded chat session...");
     data.session_id = await client.ensureEmbeddedChatSession(chatId, tokenInfo.beta, data);
@@ -1276,9 +1312,9 @@ async function embedAgentChat(opts) {
   const client = createClient();
   const agentId = requireOpt(opts, "agent");
   const question = requireOpt(opts, "question");
-  const tokenInfo = await embedBeta(client, opts);
   const data = { id: agentId, query: question };
   applyEmbeddedAgentPayloadOptions(data, opts);
+  const tokenInfo = await embedBeta(client, opts);
   info(`Asking embedded agent: "${question}"`);
   const result = await client.embeddedAgentChat(agentId, tokenInfo.beta, data);
   ok("Embedded agent response received");
@@ -1289,8 +1325,11 @@ async function embedAgentChat(opts) {
 
 async function listModels(opts) {
   const client = createClient();
+  const includeDetails = Boolean(opts.includeDetails);
+  const groupBy = opts.groupBy || "type";
+  const includeUnavailable = opts.all;
   const params = {};
-  if (opts.includeDetails) params.include_details = true;
+  if (includeDetails) params.include_details = true;
   info("Fetching available LLM models...");
   let result;
   try {
@@ -1305,8 +1344,6 @@ async function listModels(opts) {
   // Normalize and group models
   const factories = result || {};
   const groups = [];
-  const groupBy = opts.groupBy || "type";
-  const includeUnavailable = opts.all;
   
   for (const [factoryName, factoryPayload] of Object.entries(factories)) {
     if (factoryName.startsWith("__")) continue;
@@ -1331,7 +1368,7 @@ async function listModels(opts) {
         factory: factoryName,
         status: isAvailable ? "available" : "unavailable",
       };
-      if (opts.includeDetails) {
+      if (includeDetails) {
         model.used_token = llm.used_token;
         if (llm.api_base) model.api_base = llm.api_base;
         if (llm.max_tokens) model.max_tokens = llm.max_tokens;
@@ -1841,7 +1878,7 @@ ${C.bold}Common Options:${C.reset}
 // ── Main ──
 
 async function main() {
-  const opts = parseArgs(args.slice(1));
+  const opts = trackOptions(parseArgs(args.slice(1)));
   outputMode.jsonOnly = Boolean(opts.json);
   if (!command || command === "help" || command === "--help" || command === "-h" || opts.help) {
     printHelp();
@@ -1867,6 +1904,7 @@ async function main() {
   try {
     validateOptions(opts);
     await cmd.fn(opts);
+    validateUnusedOptions();
   } catch (err) {
     if (outputMode.jsonOnly) {
       json(commandErrorJsonPayload(err));

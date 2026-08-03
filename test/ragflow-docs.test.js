@@ -72,8 +72,8 @@ test("skill metadata follows Codex conventions and invokes the canonical skill n
   const skill = read(path.join("skill-for-ragflow", "SKILL.md"));
   const openai = read(path.join("skill-for-ragflow", "agents", "openai.yaml"));
 
-  assert.doesNotMatch(skill, /^version:/m, "version should live under metadata");
-  assert.match(skill, /^\s+version: 1\.7\.0$/m);
+  assert.doesNotMatch(skill, /^version:/m, "release version should not be a top-level skill field");
+  assert.doesNotMatch(skill, /^\s+(version|compatibility):/m, "release metadata should stay outside skill frontmatter");
   assert.match(openai, /\$skill-for-ragflow\b/);
   assert.doesNotMatch(openai, /\$ragflow-skill\b/);
 

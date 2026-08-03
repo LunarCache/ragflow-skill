@@ -554,6 +554,8 @@ const levels = await client.getLogLevels();
 await client.setLogLevel("ragflow", "DEBUG");
 ```
 
+`getSystemHealth()` handles v0.26.4's raw health JSON rather than the usual `{ code, data }` envelope. The health route checks reachability and server dependencies; use `validateConnection()` or an authenticated resource command to verify the API key.
+
 ## Utility
 
 ```javascript

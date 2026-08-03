@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const http = require("node:http");
 
-const { createClient } = require("../skill-for-ragflow/lib/api.js");
+const { RagflowClient, createClient } = require("../skill-for-ragflow/lib/api.js");
 
 test("agentChat normalizes non-stream workflow_finished payloads", async () => {
   const server = http.createServer((req, res) => {
@@ -599,7 +599,7 @@ test("deleteConnector sends DELETE request", async () => {
 
 test("runRaptor starts raptor processing", async () => {
   const server = http.createServer((req, res) => {
-    if (req.method === "POST" && req.url === "/api/v1/datasets/ds456/run_raptor") {
+    if (req.method === "POST" && req.url === "/api/v1/datasets/ds456/index?type=raptor") {
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({
         code: 0,
@@ -640,7 +640,7 @@ test("runRaptor starts raptor processing", async () => {
 
 test("traceRaptor returns progress", async () => {
   const server = http.createServer((req, res) => {
-    if (req.method === "GET" && req.url === "/api/v1/datasets/ds789/trace_raptor") {
+    if (req.method === "GET" && req.url === "/api/v1/datasets/ds789/index?type=raptor") {
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({
         code: 0,
@@ -869,11 +869,10 @@ test("daily workflow client methods build correct method/url/body", async () => 
       [() => client.updateMetadata("ds1", { selector: { document_ids: ["doc1"] }, updates: [{ key: "status", value: "reviewed" }] }), "POST", "/api/v1/datasets/ds1/metadata/update", { selector: { document_ids: ["doc1"] }, updates: [{ key: "status", value: "reviewed" }] }],
       [() => client.getSession("chat1", "sess1"), "GET", "/api/v1/chats/chat1/sessions/sess1", undefined],
       [() => client.updateSession("chat1", "sess1", { name: "Renamed" }), "PATCH", "/api/v1/chats/chat1/sessions/sess1", { name: "Renamed" }],
-      [() => client.getKnowledgeGraph("ds1"), "GET", "/api/v1/datasets/ds1/knowledge_graph", undefined],
-      [() => client.deleteKnowledgeGraph("ds1"), "DELETE", "/api/v1/datasets/ds1/knowledge_graph", undefined],
-      [() => client.runGraphRag("ds1"), "POST", "/api/v1/datasets/ds1/run_graphrag", undefined],
-      [() => client.traceGraphRag("ds1"), "GET", "/api/v1/datasets/ds1/trace_graphrag", undefined],
-      [() => client.getSystemHealth(), "GET", "/api/v1/system/healthz", undefined],
+      [() => client.getKnowledgeGraph("ds1"), "GET", "/api/v1/datasets/ds1/graph", undefined],
+      [() => client.deleteKnowledgeGraph("ds1"), "DELETE", "/api/v1/datasets/ds1/graph", undefined],
+      [() => client.runGraphRag("ds1"), "POST", "/api/v1/datasets/ds1/index?type=graph", undefined],
+      [() => client.traceGraphRag("ds1"), "GET", "/api/v1/datasets/ds1/index?type=graph", undefined],
     ];
 
     for (const [call, method, url, body] of checks) {
@@ -891,6 +890,27 @@ test("daily workflow client methods build correct method/url/body", async () => 
     else process.env.RAGFLOW_URL = previousUrl;
     if (previousKey === undefined) delete process.env.RAGFLOW_API_KEY;
     else process.env.RAGFLOW_API_KEY = previousKey;
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("getSystemHealth accepts the raw v0.26.4 health response", async () => {
+  const server = http.createServer((req, res) => {
+    assert.equal(req.method, "GET");
+    assert.equal(req.url, "/api/v1/system/healthz");
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ status: "green", db: "green", redis: "green" }));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address();
+  const client = new RagflowClient(`http://127.0.0.1:${port}`, "test-key");
+  try {
+    assert.deepEqual(await client.getSystemHealth(), {
+      status: "green",
+      db: "green",
+      redis: "green",
+    });
+  } finally {
     await new Promise((resolve) => server.close(resolve));
   }
 });

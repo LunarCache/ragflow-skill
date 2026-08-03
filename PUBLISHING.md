@@ -30,7 +30,7 @@ Keep these values aligned before publishing:
 - Package root: `skill-for-ragflow/`
 - Homepage: `https://github.com/LunarCache/ragflow-skill`
 
-The authoritative version is `metadata.version` in the frontmatter of `skill-for-ragflow/SKILL.md`. Bump that value before each release.
+The authoritative release version is the newest heading under `README.md` → **Update Notes**. Bump that heading before each release; keep RAGFlow compatibility in `SKILL.md`'s description and requirements.
 
 ## Pre-publish checks
 
@@ -100,7 +100,7 @@ Do not hardcode an expected file count in this document. The exact count changes
 Example publish command:
 
 ```powershell
-clawhub publish .\skill-for-ragflow --slug skill-for-ragflow --name "RAGFlow Skill" --version <version-from-skill-md> --tags latest --changelog "<release notes>"
+clawhub publish .\skill-for-ragflow --slug skill-for-ragflow --name "RAGFlow Skill" --version <release-version> --tags latest --changelog "<release notes>"
 ```
 
 After publishing, record the returned release ID somewhere durable.
@@ -122,7 +122,7 @@ clawhub inspect skill-for-ragflow --file SKILL.md
 
 Verify that:
 
-- the latest version matches `skill-for-ragflow/SKILL.md`
+- the latest version matches the newest `README.md` Update Notes heading
 - the published file list includes the current agent guide and examples
 - the security scan completes successfully
 

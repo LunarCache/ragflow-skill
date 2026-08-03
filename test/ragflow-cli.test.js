@@ -115,7 +115,13 @@ function createMockServer(options = {}) {
         return;
       }
       if (pathname === "/api/v1/system/healthz" && req.method === "GET") {
-        jsonResponse(res, { status: "green" });
+        apiResponse(
+          res,
+          options.healthUnhealthy ? 500 : 200,
+          options.healthUnhealthy
+            ? { status: "red", db: "red", redis: "green" }
+            : { status: "green", db: "green", redis: "green" }
+        );
         return;
       }
       if (pathname === "/api/v1/system/config/log" && req.method === "GET") {
@@ -460,12 +466,12 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
     { args: ["list-agents", "--tags", "ml", "--json"], expect: { method: "GET", path: "/api/v1/agents", query: { tags: "ml" } } },
     { args: ["list-connectors", "--dataset", "ds1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/connectors" } },
     { args: ["create-connector", "--dataset", "ds1", "--config", "{\"type\":\"web\"}", "--json"], expect: { method: "POST", path: "/api/v1/datasets/ds1/connectors", body: { type: "web" } } },
-    { args: ["run-raptor", "--dataset", "ds1", "--json"], expect: { method: "POST", path: "/api/v1/datasets/ds1/run_raptor" } },
-    { args: ["trace-raptor", "--dataset", "ds1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/trace_raptor" } },
-    { args: ["get-knowledge-graph", "--dataset", "ds1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/knowledge_graph" } },
-    { args: ["delete-knowledge-graph", "--dataset", "ds1", "--json"], expect: { method: "DELETE", path: "/api/v1/datasets/ds1/knowledge_graph" } },
-    { args: ["run-graphrag", "--dataset", "ds1", "--json"], expect: { method: "POST", path: "/api/v1/datasets/ds1/run_graphrag" } },
-    { args: ["trace-graphrag", "--dataset", "ds1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/trace_graphrag" } },
+    { args: ["run-raptor", "--dataset", "ds1", "--json"], expect: { method: "POST", path: "/api/v1/datasets/ds1/index", query: { type: "raptor" } } },
+    { args: ["trace-raptor", "--dataset", "ds1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/index", query: { type: "raptor" } } },
+    { args: ["get-knowledge-graph", "--dataset", "ds1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/graph" } },
+    { args: ["delete-knowledge-graph", "--dataset", "ds1", "--json"], expect: { method: "DELETE", path: "/api/v1/datasets/ds1/graph" } },
+    { args: ["run-graphrag", "--dataset", "ds1", "--json"], expect: { method: "POST", path: "/api/v1/datasets/ds1/index", query: { type: "graph" } } },
+    { args: ["trace-graphrag", "--dataset", "ds1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/index", query: { type: "graph" } } },
     // chat/agent session features
     { args: ["preview-document", "--id", "doc1", "--json"], expect: { method: "GET", path: "/api/v1/documents/doc1/preview" } },
     { args: ["ingest-documents", "--doc-ids", "doc1", "doc2", "--run", "1", "--delete", "--json"], expect: { method: "POST", path: "/api/v1/documents/ingest", body: { doc_ids: ["doc1", "doc2"], run: "1", delete: true } } },
@@ -535,8 +541,24 @@ test("CLI rejects unknown options before making a request", async () => {
   try {
     const result = await runCli(server.url, ["run-raptor", "--dataset", "ds1", "--method", "raptor", "--json"]);
     assert.equal(result.status, 1);
-    assert.match(result.stdout, /Unknown option: --method/);
+    assert.match(result.stdout, /Unknown option for run-raptor: --method/);
+    const irrelevant = await runCli(server.url, ["run-raptor", "--dataset", "ds1", "--name", "typo", "--json"]);
+    assert.equal(irrelevant.status, 1);
+    assert.match(irrelevant.stdout, /Unknown option for run-raptor: --name/);
     assert.equal(server.requests.length, 0);
+  } finally {
+    await server.close();
+  }
+});
+
+test("system-health preserves dependency diagnostics on an unhealthy response", async () => {
+  const server = await createMockServer({ healthUnhealthy: true });
+  try {
+    const result = await runCli(server.url, ["system-health", "--json"]);
+    assert.equal(result.status, 1);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.error.status, 500);
+    assert.deepEqual(payload.response, { status: "red", db: "red", redis: "green" });
   } finally {
     await server.close();
   }

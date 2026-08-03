@@ -2,8 +2,6 @@
 name: skill-for-ragflow
 description: Operate RAGFlow v0.26.4 deployments through a bundled Node CLI for everyday knowledge-base setup, document ingestion, parsing, retrieval, chat assistants, agents, GraphRAG, connectors, models, and diagnostics. Use when a request explicitly involves a RAGFlow server, dataset, document pipeline, or RAGFlow agent.
 metadata:
-  version: 1.7.0
-  compatibility: RAGFlow v0.26.4
   openclaw:
     requires:
       bins:
@@ -17,13 +15,13 @@ metadata:
 
 # RAGFlow Skill
 
-Operate common RAGFlow v0.26.4 workflows through `node {baseDir}/scripts/ragflow.js <command> [options]`. Prefer `--json` when parsing or chaining results. This skill intentionally prioritizes daily operations over exhaustive API coverage.
+Operate common RAGFlow v0.26.4 workflows through `node {baseDir}/scripts/ragflow.js <command> [options]`. Prefer `--json` when parsing or chaining results. Prioritize daily operations over exhaustive API coverage.
 
 ## Requirements
 
 - Set `RAGFLOW_URL` and `RAGFLOW_API_KEY` in the environment or this skill's `.env`.
 - Use Node.js to run bundled scripts.
-- Run `system-health --json` after first-time setup to verify connectivity and authentication.
+- Run `system-health --json` after first-time setup to verify service reachability and dependencies. Use `list-datasets --page-size 1 --json` to verify API-key authentication.
 
 ## Security Notes
 
@@ -91,11 +89,11 @@ Operate common RAGFlow v0.26.4 workflows through `node {baseDir}/scripts/ragflow
 
 1. `list-providers --available` to see configurable providers
 2. `add-provider --name <provider>`
-3. `create-provider-instance --name <provider> --instance <name> --api-key <key>` (credentials live on an instance; a provider can have several)
+3. Set `RAGFLOW_PROVIDER_API_KEY`, then run `create-provider-instance --name <provider> --instance <name>` (credentials live on an instance; a provider can have several)
 4. `add-instance-model --name <provider> --instance <name> --model-name <model> --model-type chat`
 5. `set-default-model --model-type chat --model-provider <provider> --model-instance <name> --model-name <model>`
 
-Use `verify-provider --name <provider> --api-key <key>` to test a key without persisting an instance.
+Use `verify-provider --name <provider>` with `RAGFLOW_PROVIDER_API_KEY` set, or pass `--api-key-file <path>`, to test a key without persisting an instance.
 
 ### RAPTOR workflow
 
@@ -122,7 +120,7 @@ The first step in any RAGFlow operation is resolving the target resource ID. Aft
 
 1. **Authoring or debugging a custom agent DSL?** -> Read [references/AGENT_GUIDE.md](references/AGENT_GUIDE.md) - it is a self-contained guide to the current RAGFlow agent DSL schema and includes minimal examples.
 2. **Need CLI syntax or option details?** -> Read [references/COMMANDS.md](references/COMMANDS.md) - it's organized by workflow scenario with full option tables.
-3. **Editing client code or checking request/response shapes?** -> Read [references/API.md](references/API.md) - it has code examples for every `RagflowClient` method.
+3. **Editing client code or checking request/response shapes?** -> Read [references/API.md](references/API.md) - it has examples for supported `RagflowClient` workflows.
 4. **A command failed?** -> Read [references/TROUBLESHOOTING.md](references/TROUBLESHOOTING.md) - common errors with causes and fixes.
 5. **Formatting output for the user?** -> Read [references/REFERENCE.md](references/REFERENCE.md) - consistent response templates and status labels.
 
@@ -143,7 +141,7 @@ The first step in any RAGFlow operation is resolving the target resource ID. Aft
 - **Prefer the current Agent DSL schema from `AGENT_GUIDE.md`.** In practice, hand-authored agents should include `components`, `history`, `path`, `retrieval`, `variables`, `globals`, and `graph`, plus `graph.nodes[].data.name` for every component-backed node.
 - **Agent tags must be comma-separated strings.** When updating agent tags, pass them as a single string of comma-separated values.
 - **Connectors require valid auth tokens.** Ensure the target service token is valid before creating a connector. `create-connector` passes `--config` through verbatim, so v0.26.4's new connector types (OneDrive, Outlook, Microsoft Teams, Slack, SharePoint, Salesforce, Azure Blob Storage) work by setting the type and auth fields in the config JSON.
-- **Model-provider commands manage credentials.** Provider/model management (`list-providers`, `create-provider-instance`, `set-default-model`, etc.) uses the v0.26.4 `/api/v1/models` and `/api/v1/providers` routes with `RAGFLOW_API_KEY`. Credentials live on an instance, and a provider can hold multiple instances (multiple API keys). Treat any `--api-key` value as sensitive operational secret output - use it for the task but do not print it back to the user unless explicitly asked.
+- **Model-provider commands manage credentials.** Provider/model management (`list-providers`, `create-provider-instance`, `set-default-model`, etc.) uses the v0.26.4 `/api/v1/models` and `/api/v1/providers` routes with `RAGFLOW_API_KEY`. Credentials live on an instance, and a provider can hold multiple instances. Prefer `RAGFLOW_PROVIDER_API_KEY` or `--api-key-file`; keep the legacy `--api-key` option out of normal workflows because argv may appear in shell history or process listings.
 - **Agent chat uses the v0.26.4 route.** `agent-chat` posts to `/api/v1/agents/chat/completions` with `agent_id` in the body. Pass `--chat-template-kwargs '{"enable_thinking": false}'` to toggle thinking/reasoning modes on supported models.
 - **Iteration agents should iterate over a real list output.** When an upstream `Agent` produces loop items, prefer an object-shaped structured output such as `{"items":[...]}` and point `Iteration.params.items_ref` at `agent:0@structured.items`. Start from `references/examples/agents/04-iteration-agent.json`.
 - **Chunk deletion may need retries.** Some servers can return `rm_chunk deleted chunks 0, expect N` due to document-store refresh lag even when the chunk exists. The CLI handles this automatically - it retries after confirming the chunk is still visible via exact ID lookup. If retries still fail, run `scripts/repro-delete-chunks.js` for a clean diagnosis.

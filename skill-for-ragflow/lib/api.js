@@ -51,7 +51,15 @@ class RagflowClient {
     const attempts = this.maxRetries + 1;
     for (let attempt = 1; attempt <= attempts; attempt++) {
       try {
-        return await this._doRequest(method, endpoint, headers, body, options.timeout, options.apiPrefix);
+        return await this._doRequest(
+          method,
+          endpoint,
+          headers,
+          body,
+          options.timeout,
+          options.apiPrefix,
+          options.rawResponse
+        );
       } catch (err) {
         lastError = err;
         if (this._isRetryable(err) && attempt < attempts) {
@@ -94,7 +102,7 @@ class RagflowClient {
     return err;
   }
 
-  _doRequest(method, endpoint, headers, body, timeoutOverride, apiPrefix = this.apiPrefix) {
+  _doRequest(method, endpoint, headers, body, timeoutOverride, apiPrefix = this.apiPrefix, rawResponse = false) {
     const url = this._buildUrl(endpoint, apiPrefix);
     const timeout = timeoutOverride || this.timeout;
 
@@ -107,6 +115,17 @@ class RagflowClient {
           const raw = Buffer.concat(chunks).toString("utf-8");
           try {
             const data = JSON.parse(raw);
+            if (rawResponse) {
+              if (res.statusCode >= 200 && res.statusCode < 300) {
+                resolve(data);
+              } else {
+                const err = new Error(data.message || `HTTP ${res.statusCode}`);
+                err.status = res.statusCode;
+                err.response = data;
+                reject(err);
+              }
+              return;
+            }
             if (data.code === 0) {
               resolve(data.data !== undefined ? data.data : {});
             } else {
@@ -504,27 +523,27 @@ class RagflowClient {
   // ── RAPTOR ──
 
   async runRaptor(datasetId) {
-    return this.request("POST", `/datasets/${datasetId}/run_raptor`);
+    return this.request("POST", `/datasets/${datasetId}/index?type=raptor`);
   }
 
   async traceRaptor(datasetId) {
-    return this.request("GET", `/datasets/${datasetId}/trace_raptor`);
+    return this.request("GET", `/datasets/${datasetId}/index?type=raptor`);
   }
 
   async getKnowledgeGraph(datasetId) {
-    return this.request("GET", `/datasets/${datasetId}/knowledge_graph`);
+    return this.request("GET", `/datasets/${datasetId}/graph`);
   }
 
   async deleteKnowledgeGraph(datasetId) {
-    return this.request("DELETE", `/datasets/${datasetId}/knowledge_graph`);
+    return this.request("DELETE", `/datasets/${datasetId}/graph`);
   }
 
   async runGraphRag(datasetId) {
-    return this.request("POST", `/datasets/${datasetId}/run_graphrag`);
+    return this.request("POST", `/datasets/${datasetId}/index?type=graph`);
   }
 
   async traceGraphRag(datasetId) {
-    return this.request("GET", `/datasets/${datasetId}/trace_graphrag`);
+    return this.request("GET", `/datasets/${datasetId}/index?type=graph`);
   }
 
   // ── Chat Assistant ──
@@ -857,7 +876,7 @@ class RagflowClient {
   }
 
   async getSystemHealth() {
-    return this.request("GET", "/system/healthz");
+    return this.request("GET", "/system/healthz", { rawResponse: true });
   }
 
   async getLogLevels() {
