@@ -29,11 +29,13 @@ test("README reflects the current local and live test layout", () => {
 
 test("agent docs align on current iteration and non-stream agent-chat behavior", () => {
   const skill = read(path.join("skill-for-ragflow", "SKILL.md"));
+  const agentGuide = read(path.join("skill-for-ragflow", "references", "AGENT_GUIDE.md"));
   const commands = read(path.join("skill-for-ragflow", "references", "COMMANDS.md"));
   const api = read(path.join("skill-for-ragflow", "references", "API.md"));
   const troubleshooting = read(path.join("skill-for-ragflow", "references", "TROUBLESHOOTING.md"));
 
-  assert.match(skill, /agent:0@structured\.items/);
+  assert.match(skill, /references\/AGENT_GUIDE\.md/);
+  assert.match(agentGuide, /agent:0@structured\.items/);
   assert.match(commands, /delete-system-token --token-stdin/);
   assert.match(commands, /delete-system-token --token-file/);
   assert.doesNotMatch(commands, /delete-system-token --token <ragflow-token>/);
@@ -56,16 +58,17 @@ test("repo docs do not keep stale branding or unreadable publishing guidance", (
   assert.doesNotMatch(publishing, /鍙|鏈|ClawHub slug锛/);
 });
 
-test("SKILL.md constraints reference v0.26.4", () => {
+test("SKILL.md keeps core guardrails concise and delegates route details", () => {
   const skill = read(path.join("skill-for-ragflow", "SKILL.md"));
+  const api = read(path.join("skill-for-ragflow", "references", "API.md"));
+  const constraints = skill.match(/## Key Constraints\s+([\s\S]*?)\s+## Output Format/)?.[1] || "";
 
-  // Assert Key Constraints section references v0.26.4
-  assert.match(skill, /Use v0\.26\.4 route shapes/, "SKILL.md constraints should reference v0.26.4 route shapes");
-  assert.match(skill, /v0\.26\.4 route/, "SKILL.md constraints should reference v0.26.4 routes");
-  // Assert pass_all_history_messages constraint is documented
-  assert.match(skill, /pass.all.history/, "SKILL.md constraints should mention pass-all-history behavior");
-  // Assert the v0.26.4 page_size cap is documented
-  assert.match(skill, /page_size/, "SKILL.md constraints should document the page_size cap");
+  assert.match(skill, /references\/API\.md/);
+  assert.match(api, /v0\.26\.4/);
+  assert.match(constraints, /pass-all-history/, "constraints should preserve session-history intent");
+  assert.match(constraints, /100-item list limit/, "constraints should preserve pagination behavior");
+  assert.doesNotMatch(constraints, /(?:GET|POST|PATCH|DELETE) \/api\/v1/, "route shapes belong in API.md");
+  assert.equal((constraints.match(/^- \*\*/gm) || []).length, 8, "constraints should stay focused on eight operational guardrails");
 });
 
 test("skill metadata follows Codex conventions and invokes the canonical skill name", () => {
