@@ -5,6 +5,13 @@ Apply this reference to all user-facing output for this skill.
 
 Use this reference only for the final user-facing response. The bundled CLI may still emit raw JSON for automation, especially with `--json`; summarize that raw output into these formats instead of reproducing it verbatim unless the user explicitly asks for the exact payload.
 
+## Table of Contents
+
+- [Format Decision Matrix](#format-decision-matrix)
+- [Common Formats](#common-formats)
+- [Response Templates](#response-templates)
+- [Error Response Format](#error-response-format)
+
 ## Format Decision Matrix
 
 | Information Type | Format | Use Case |

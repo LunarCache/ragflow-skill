@@ -30,7 +30,7 @@ Keep these values aligned before publishing:
 - Package root: `skill-for-ragflow/`
 - Homepage: `https://github.com/LunarCache/ragflow-skill`
 
-The authoritative version is the frontmatter in `skill-for-ragflow/SKILL.md`. Bump that version before each release.
+The authoritative version is `metadata.version` in the frontmatter of `skill-for-ragflow/SKILL.md`. Bump that value before each release.
 
 ## Pre-publish checks
 

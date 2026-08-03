@@ -166,6 +166,34 @@ function parseArgs(argv) {
   return opts;
 }
 
+const KNOWN_OPTION_KEYS = new Set([
+  "agent", "all", "apiKey", "apiKeyFile", "auth", "available", "baseUrl", "beta",
+  "canvasType", "chat", "chatTemplateKwargs", "chunk", "chunkIds", "chunkMethod",
+  "config", "content", "conversationId", "crossLangs", "data", "dataset", "datasets",
+  "delete", "desc", "description", "docIds", "document", "dsl", "embeddingModel",
+  "enabled", "extra", "files", "frequencyPenalty", "groupBy", "help", "hideAvatar",
+  "id", "ids", "includeDetails", "inputs", "instance", "instances", "internet", "json",
+  "keyword", "keywords", "kg", "legacy", "level", "llm", "llmId", "locale", "maxTokens",
+  "messages", "metadata", "metadataCondition", "metaFields", "modelInfo", "modelInstance",
+  "modelName", "modelProvider", "modelType", "name", "orderby", "origin", "page", "pageSize",
+  "parserConfig", "passAllHistory", "permission", "pkgName", "presencePenalty", "prompt",
+  "promptConfig", "published", "question", "quote", "reasoning", "region", "release", "rerank",
+  "returnEmptyMetadata", "run", "session", "similarity", "similarityThreshold", "status", "stream",
+  "streaming", "suffix", "supported", "tags", "temperature", "theme", "timeout", "title", "token",
+  "tokenFile", "tokenStdin", "topK", "topN", "topP", "type", "types", "userId", "vectorWeight",
+  "visibleAvatar",
+]);
+
+function optionName(key) {
+  return `--${key.replace(/([A-Z])/g, "-$1").toLowerCase()}`;
+}
+
+function validateOptions(opts) {
+  const unknown = Object.keys(opts).find((key) => key !== "_" && !KNOWN_OPTION_KEYS.has(key));
+  if (unknown) throw new Error(`Unknown option: ${optionName(unknown)}`);
+  if (opts._.length) throw new Error(`Unexpected positional argument: ${opts._[0]}`);
+}
+
 function listValue(value) {
   const values = Array.isArray(value) ? value : String(value).split(",");
   return values
@@ -200,6 +228,17 @@ function readStdinText() {
     process.stdin.on("end", () => resolve(data));
     process.stdin.on("error", reject);
   });
+}
+
+function providerApiKey(opts, required = false) {
+  let value = opts.apiKey || process.env.RAGFLOW_PROVIDER_API_KEY;
+  if (opts.apiKeyFile) {
+    value = fs.readFileSync(path.resolve(process.cwd(), opts.apiKeyFile), "utf-8").trim();
+  }
+  if (required && !value) {
+    throw new Error("Missing provider API key. Set RAGFLOW_PROVIDER_API_KEY or use --api-key-file");
+  }
+  return value || undefined;
 }
 
 function uploadFileSpec(value) {
@@ -631,6 +670,16 @@ async function listChunks(opts) {
   json(result);
 }
 
+async function getChunk(opts) {
+  const client = createClient();
+  const dataset = requireOpt(opts, "dataset");
+  const document = requireOpt(opts, "document");
+  const chunk = requireOpt(opts, "chunk");
+  const result = await client.getChunk(dataset, document, chunk);
+  ok(`Chunk fetched: ${chunk}`);
+  json(result);
+}
+
 async function addChunk(opts) {
   const client = createClient();
   const dataset = requireOpt(opts, "dataset");
@@ -734,6 +783,19 @@ async function retrieve(opts) {
   const result = await client.retrieve(params);
   const count = Array.isArray(result) ? result.length : 0;
   ok(`Found ${count} result(s)`);
+  json(result);
+}
+
+async function updateMetadata(opts) {
+  const client = createClient();
+  const dataset = requireOpt(opts, "dataset");
+  const config = requireOpt(opts, "config");
+  const data = jsonOption(config, "--config");
+  if (!data.selector && !data.updates && !data.deletes) {
+    throw new Error("--config must include selector, updates, or deletes");
+  }
+  const result = await client.updateMetadata(dataset, data);
+  ok("Document metadata updated");
   json(result);
 }
 
@@ -896,6 +958,27 @@ async function createSession(opts) {
   info("Creating session...");
   const result = await client.createSession(chat, data);
   ok(`Session created: ${result.id}`);
+  json(result);
+}
+
+async function getSession(opts) {
+  const client = createClient();
+  const chat = requireOpt(opts, "chat");
+  const session = requireOpt(opts, "session");
+  const result = await client.getSession(chat, session);
+  ok(`Session fetched: ${session}`);
+  json(result);
+}
+
+async function updateSession(opts) {
+  const client = createClient();
+  const chat = requireOpt(opts, "chat");
+  const session = requireOpt(opts, "session");
+  const data = opts.config ? jsonOption(opts.config, "--config") : {};
+  if (opts.name) data.name = opts.name;
+  if (!Object.keys(data).length) throw new Error("Provide --name or --config");
+  const result = await client.updateSession(chat, session, data);
+  ok(`Session updated: ${session}`);
   json(result);
 }
 
@@ -1343,7 +1426,8 @@ async function listProviderModels(opts) {
   const client = createClient();
   const name = requireOpt(opts, "name");
   const params = {};
-  if (opts.apiKey) params.api_key = opts.apiKey;
+  const apiKey = providerApiKey(opts);
+  if (apiKey) params.api_key = apiKey;
   if (opts.baseUrl) params.base_url = opts.baseUrl;
   info(`Fetching available models for provider ${name}...`);
   const result = await client.listProviderModels(name, params);
@@ -1375,7 +1459,7 @@ async function createProviderInstance(opts) {
   const name = requireOpt(opts, "name");
   const data = {
     instance_name: requireOpt(opts, "instance"),
-    api_key: requireOpt(opts, "apiKey"),
+    api_key: providerApiKey(opts, true),
   };
   if (opts.baseUrl) data.base_url = opts.baseUrl;
   if (opts.region) data.region = opts.region;
@@ -1399,7 +1483,7 @@ async function deleteProviderInstances(opts) {
 async function verifyProvider(opts) {
   const client = createClient();
   const name = requireOpt(opts, "name");
-  const data = { api_key: requireOpt(opts, "apiKey") };
+  const data = { api_key: providerApiKey(opts, true) };
   if (opts.baseUrl) data.base_url = opts.baseUrl;
   if (opts.region) data.region = opts.region;
   if (opts.modelInfo) data.model_info = jsonOption(opts.modelInfo, "--model-info");
@@ -1469,6 +1553,38 @@ async function traceRaptor(opts) {
   json(result);
 }
 
+async function getKnowledgeGraph(opts) {
+  const client = createClient();
+  const dataset = requireOpt(opts, "dataset");
+  const result = await client.getKnowledgeGraph(dataset);
+  ok("Knowledge graph fetched");
+  json(result);
+}
+
+async function deleteKnowledgeGraph(opts) {
+  const client = createClient();
+  const dataset = requireOpt(opts, "dataset");
+  const result = await client.deleteKnowledgeGraph(dataset);
+  ok("Knowledge graph deleted");
+  json(result);
+}
+
+async function runGraphRag(opts) {
+  const client = createClient();
+  const dataset = requireOpt(opts, "dataset");
+  const result = await client.runGraphRag(dataset);
+  ok("GraphRAG construction started");
+  json(result);
+}
+
+async function traceGraphRag(opts) {
+  const client = createClient();
+  const dataset = requireOpt(opts, "dataset");
+  const result = await client.traceGraphRag(dataset);
+  ok(`GraphRAG status: ${result.status || "unknown"}`);
+  json(result);
+}
+
 // ── Command registry ──
 
 async function metadataSummary(opts) {
@@ -1485,6 +1601,13 @@ async function systemVersion() {
   const client = createClient();
   const result = await client.getSystemVersion();
   ok("System version fetched");
+  json(result);
+}
+
+async function systemHealth() {
+  const client = createClient();
+  const result = await client.getSystemHealth();
+  ok("System health fetched");
   json(result);
 }
 
@@ -1527,6 +1650,7 @@ const COMMANDS = {
   "wait-parsing":      { fn: waitParsing,      group: "Parsing",   desc: "Wait for parsing to complete" },
   // Chunk
   "list-chunks":       { fn: listChunks,       group: "Chunk",     desc: "List chunks" },
+  "get-chunk":         { fn: getChunk,         group: "Chunk",     desc: "Get one chunk by ID" },
   "add-chunk":         { fn: addChunk,         group: "Chunk",     desc: "Add a chunk" },
   "update-chunk":      { fn: updateChunk,      group: "Chunk",     desc: "Update a chunk" },
   "delete-chunks":     { fn: deleteChunks,     group: "Chunk",     desc: "Delete chunks" },
@@ -1534,6 +1658,7 @@ const COMMANDS = {
   "delete-document-graph": { fn: deleteDocumentGraph, group: "Chunk", desc: "Delete a document structure graph" },
   // Retrieval
   "retrieve":          { fn: retrieve,         group: "Retrieval", desc: "Retrieve from datasets" },
+  "update-metadata":   { fn: updateMetadata,   group: "Document",  desc: "Batch update or delete document metadata" },
   // Connector
   "list-connectors":   { fn: listConnectors,   group: "Connector", desc: "List connectors" },
   "create-connector":  { fn: createConnector,  group: "Connector", desc: "Create a connector" },
@@ -1543,6 +1668,10 @@ const COMMANDS = {
   // RAPTOR
   "run-raptor":        { fn: runRaptor,        group: "RAPTOR",     desc: "Start RAPTOR processing" },
   "trace-raptor":      { fn: traceRaptor,      group: "RAPTOR",     desc: "Trace RAPTOR progress" },
+  "get-knowledge-graph": { fn: getKnowledgeGraph, group: "GraphRAG", desc: "Get a dataset knowledge graph" },
+  "delete-knowledge-graph": { fn: deleteKnowledgeGraph, group: "GraphRAG", desc: "Delete a dataset knowledge graph" },
+  "run-graphrag":      { fn: runGraphRag,      group: "GraphRAG",  desc: "Start knowledge graph construction" },
+  "trace-graphrag":    { fn: traceGraphRag,    group: "GraphRAG",  desc: "Trace knowledge graph construction" },
   // Chat Assistant
   "list-chats":        { fn: listChatAssistants, group: "Chat",    desc: "List chat assistants" },
   "create-chat":       { fn: createChatAssistant, group: "Chat",   desc: "Create a chat assistant" },
@@ -1553,6 +1682,8 @@ const COMMANDS = {
   // Session
   "list-sessions":     { fn: listSessions,     group: "Session",   desc: "List chat sessions" },
   "create-session":    { fn: createSession,    group: "Session",   desc: "Create a chat session" },
+  "get-session":       { fn: getSession,       group: "Session",   desc: "Get a chat session" },
+  "update-session":    { fn: updateSession,    group: "Session",   desc: "Update a chat session" },
   "delete-sessions":   { fn: deleteSessions,   group: "Session",   desc: "Delete chat sessions" },
   // Chat conversation
   "chat":              { fn: chat,             group: "Chat",      desc: "Chat with an assistant" },
@@ -1600,6 +1731,7 @@ const COMMANDS = {
   // Metadata / System
   "metadata-summary":  { fn: metadataSummary,  group: "Document",  desc: "Summarize document metadata" },
   "system-version":    { fn: systemVersion,    group: "System",    desc: "Get system version" },
+  "system-health":     { fn: systemHealth,     group: "System",    desc: "Check system health" },
   "get-log-levels":    { fn: getLogLevels,     group: "System",    desc: "Get log levels" },
   "set-log-level":     { fn: setLogLevel,      group: "System",    desc: "Set a log level" },
 };
@@ -1688,7 +1820,8 @@ ${C.bold}Common Options:${C.reset}
     --available         List system-available providers (list-providers)
     --instance          Provider instance name
     --instances         Provider instance names (multiple values)
-    --api-key           Provider API key (create-provider-instance, verify-provider)
+    --api-key-file      Read provider API key from a file (recommended)
+    --api-key           Provider API key in argv (legacy; prefer file or RAGFLOW_PROVIDER_API_KEY)
     --base-url          Provider base URL
     --region            Provider region
     --model-info        Provider model_info JSON (provider instance commands)
@@ -1732,6 +1865,7 @@ async function main() {
   }
 
   try {
+    validateOptions(opts);
     await cmd.fn(opts);
   } catch (err) {
     if (outputMode.jsonOnly) {

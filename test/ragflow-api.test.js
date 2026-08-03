@@ -837,7 +837,7 @@ test("chatSession deletes messages when pass_all_history_messages is absent", as
 
 // ── v0.26.4 provider / model management ──
 
-test("v0.26.4 document and chunk client methods build correct method/url/body", async () => {
+test("daily workflow client methods build correct method/url/body", async () => {
   let last = null;
   const server = http.createServer((req, res) => {
     const chunks = [];
@@ -862,9 +862,18 @@ test("v0.26.4 document and chunk client methods build correct method/url/body", 
 
     const checks = [
       [() => client.ingestDocuments(["doc1"], { run: "1", delete: true }), "POST", "/api/v1/documents/ingest", { doc_ids: ["doc1"], run: "1", delete: true }],
+      [() => client.getChunk("ds1", "doc1", "chunk1"), "GET", "/api/v1/datasets/ds1/documents/doc1/chunks/chunk1", undefined],
       [() => client.updateChunk("ds1", "doc1", "chunk1", { content: "new text" }), "PATCH", "/api/v1/datasets/ds1/documents/doc1/chunks/chunk1", { content: "new text" }],
       [() => client.getDocumentStructureGraph("ds1", "doc1"), "GET", "/api/v1/datasets/ds1/documents/doc1/structure/graph", undefined],
       [() => client.deleteDocumentStructureGraph("ds1", "doc1"), "DELETE", "/api/v1/datasets/ds1/documents/doc1/structure/graph", undefined],
+      [() => client.updateMetadata("ds1", { selector: { document_ids: ["doc1"] }, updates: [{ key: "status", value: "reviewed" }] }), "POST", "/api/v1/datasets/ds1/metadata/update", { selector: { document_ids: ["doc1"] }, updates: [{ key: "status", value: "reviewed" }] }],
+      [() => client.getSession("chat1", "sess1"), "GET", "/api/v1/chats/chat1/sessions/sess1", undefined],
+      [() => client.updateSession("chat1", "sess1", { name: "Renamed" }), "PATCH", "/api/v1/chats/chat1/sessions/sess1", { name: "Renamed" }],
+      [() => client.getKnowledgeGraph("ds1"), "GET", "/api/v1/datasets/ds1/knowledge_graph", undefined],
+      [() => client.deleteKnowledgeGraph("ds1"), "DELETE", "/api/v1/datasets/ds1/knowledge_graph", undefined],
+      [() => client.runGraphRag("ds1"), "POST", "/api/v1/datasets/ds1/run_graphrag", undefined],
+      [() => client.traceGraphRag("ds1"), "GET", "/api/v1/datasets/ds1/trace_graphrag", undefined],
+      [() => client.getSystemHealth(), "GET", "/api/v1/system/healthz", undefined],
     ];
 
     for (const [call, method, url, body] of checks) {

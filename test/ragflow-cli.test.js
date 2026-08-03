@@ -114,6 +114,10 @@ function createMockServer(options = {}) {
         jsonResponse(res, "v0.26.4");
         return;
       }
+      if (pathname === "/api/v1/system/healthz" && req.method === "GET") {
+        jsonResponse(res, { status: "green" });
+        return;
+      }
       if (pathname === "/api/v1/system/config/log" && req.method === "GET") {
         jsonResponse(res, { "ragflow": "INFO" });
         return;
@@ -163,6 +167,14 @@ function createMockServer(options = {}) {
           return;
         }
         jsonResponse(res, { total: 1, chunks: [{ id: "chunk1", content: "Chunk" }] });
+        return;
+      }
+      if (pathname === "/api/v1/datasets/ds1/documents/doc1/chunks/chunk1" && req.method === "GET") {
+        if (options.deleteChunkMissingOnExactGet) {
+          apiResponse(res, 200, { code: 404, message: "Chunk not found: ds1/chunk1" });
+          return;
+        }
+        jsonResponse(res, { id: "chunk1", content: "Chunk" });
         return;
       }
       if (pathname === "/api/v1/datasets/ds1/documents/doc1/chunks" && req.method === "DELETE") {
@@ -312,6 +324,8 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
   const metaFields = path.join(tempDir, "meta.json");
   const metadata = path.join(tempDir, "metadata.json");
   const metadataCondition = path.join(tempDir, "metadata_condition.json");
+  const metadataUpdate = path.join(tempDir, "metadata_update.json");
+  const providerApiKey = path.join(tempDir, "provider_api_key.txt");
   const sessionMessages = path.join(tempDir, "messages.json");
   const dsl = path.join(tempDir, "agent.json");
   const canonicalDsl = readAgentExample("01-conversational-message.json");
@@ -324,6 +338,8 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
   fs.writeFileSync(metaFields, JSON.stringify({ author: "Alice", status: "published" }));
   fs.writeFileSync(metadata, JSON.stringify({ author: ["Alice"], status: "published" }));
   fs.writeFileSync(metadataCondition, JSON.stringify({ logic: "and", conditions: [{ name: "status", comparison_operator: "=", value: "published" }] }));
+  fs.writeFileSync(metadataUpdate, JSON.stringify({ selector: { document_ids: ["doc1"] }, updates: [{ key: "status", value: "reviewed" }] }));
+  fs.writeFileSync(providerApiKey, "sk-file\n");
   fs.writeFileSync(sessionMessages, JSON.stringify([
     { role: "system", content: "Follow the dataset." },
     { role: "user", content: "Summarize the policy." },
@@ -390,11 +406,13 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
     { args: ["stop-parsing", "--dataset", "ds1", "--doc-ids", "doc1", "--json"], expect: { method: "DELETE", path: "/api/v1/datasets/ds1/chunks", body: { document_ids: ["doc1"] } } },
     { args: ["wait-parsing", "--dataset", "ds1", "--doc-ids", "doc1", "--timeout", "1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/documents" } },
     { args: ["list-chunks", "--dataset", "ds1", "--document", "doc1", "--page", "1", "--page-size", "2", "--keywords", "risk", "--id", "chunk1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/documents/doc1/chunks", query: { page: 1, page_size: 2, keywords: "risk", id: "chunk1" } } },
+    { args: ["get-chunk", "--dataset", "ds1", "--document", "doc1", "--chunk", "chunk1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/documents/doc1/chunks/chunk1" } },
     { args: ["add-chunk", "--dataset", "ds1", "--document", "doc1", "--content", "chunk text", "--keywords", "alpha,beta", "--json"], expect: { method: "POST", path: "/api/v1/datasets/ds1/documents/doc1/chunks", body: { content: "chunk text", important_keywords: ["alpha", "beta"] } } },
     { args: ["update-chunk", "--dataset", "ds1", "--document", "doc1", "--chunk", "chunk1", "--content", "new text", "--json"], expect: { method: "PATCH", path: "/api/v1/datasets/ds1/documents/doc1/chunks/chunk1", body: { content: "new text" } } },
     { args: ["delete-chunks", "--dataset", "ds1", "--document", "doc1", "--chunk-ids", "chunk1", "--json"], expect: { method: "DELETE", path: "/api/v1/datasets/ds1/documents/doc1/chunks", body: { chunk_ids: ["chunk1"] } } },
     { args: ["get-document-graph", "--dataset", "ds1", "--document", "doc1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/documents/doc1/structure/graph" } },
     { args: ["delete-document-graph", "--dataset", "ds1", "--document", "doc1", "--json"], expect: { method: "DELETE", path: "/api/v1/datasets/ds1/documents/doc1/structure/graph" } },
+    { args: ["update-metadata", "--dataset", "ds1", "--config", `@${metadataUpdate}`, "--json"], expect: { method: "POST", path: "/api/v1/datasets/ds1/metadata/update", body: { selector: { document_ids: ["doc1"] }, updates: [{ key: "status", value: "reviewed" }] } } },
     {
       args: ["retrieve", "-q", "What is RAG?", "-d", "ds1", "ds2", "-s", "0.4", "-n", "3", "-k", "8", "-w", "0.7", "-r", "rerank1", "--keyword", "--kg", "--cross-langs", "en,zh", "--json"],
       expect: { method: "POST", path: "/api/v1/retrieval", body: { question: "What is RAG?", dataset_ids: ["ds1", "ds2"], similarity_threshold: 0.4, page_size: 3, top_k: 8, vector_similarity_weight: 0.7, rerank_id: "rerank1", keyword: true, use_kg: true, cross_languages: ["en", "zh"] } },
@@ -407,6 +425,8 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
     { args: ["delete-chats", "--ids", "chat1", "--json"], expect: { method: "DELETE", path: "/api/v1/chats", body: { ids: ["chat1"] } } },
     { args: ["list-sessions", "--chat", "chat1", "--page", "1", "--json"], expect: { method: "GET", path: "/api/v1/chats/chat1/sessions", query: { page: 1 } } },
     { args: ["create-session", "--chat", "chat1", "--name", "Session", "--json"], expect: { method: "POST", path: "/api/v1/chats/chat1/sessions", body: { name: "Session" } } },
+    { args: ["get-session", "--chat", "chat1", "--session", "sess1", "--json"], expect: { method: "GET", path: "/api/v1/chats/chat1/sessions/sess1" } },
+    { args: ["update-session", "--chat", "chat1", "--session", "sess1", "--name", "Renamed", "--json"], expect: { method: "PATCH", path: "/api/v1/chats/chat1/sessions/sess1", body: { name: "Renamed" } } },
     { args: ["delete-sessions", "--chat", "chat1", "--ids", "sess1", "--json"], expect: { method: "DELETE", path: "/api/v1/chats/chat1/sessions", body: { ids: ["sess1"] } } },
     { args: ["chat", "--chat", "chat1", "--session", "sess1", "-q", "Hello", "--legacy", "false", "--json"], expect: { method: "POST", path: "/api/v1/chat/completions", body: { chat_id: "chat1", question: "Hello", session_id: "sess1", legacy: false } } },
     { args: ["chat-session", "--chat", "chat1", "--session", "sess1", "--messages", `@${sessionMessages}`, "--llm-id", "model-a", "--temperature", "0.2", "--top-p", "0.9", "--frequency-penalty", "0.1", "--presence-penalty", "0.0", "--max-tokens", "128", "--json"], expect: { method: "POST", path: "/api/v1/chat/completions", body: { chat_id: "chat1", question: "Summarize the policy.", session_id: "sess1", llm_id: "model-a", temperature: 0.2, top_p: 0.9, frequency_penalty: 0.1, presence_penalty: 0, max_tokens: 128 } } },
@@ -423,6 +443,7 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
     { args: ["agent-chat", "--agent", "agent1", "--session", "asess1", "-q", "Hello", "--stream", "false", "--json"], expect: { method: "POST", path: "/api/v1/agents/chat/completions", body: { agent_id: "agent1", question: "Hello", session_id: "asess1", stream: false } } },
     { args: ["metadata-summary", "--dataset", "ds1", "--doc-ids", "doc1", "doc2", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/metadata/summary", query: { doc_ids: "doc1,doc2" } } },
     { args: ["system-version", "--json"], expect: { method: "GET", path: "/api/v1/system/version" } },
+    { args: ["system-health", "--json"], expect: { method: "GET", path: "/api/v1/system/healthz" } },
     { args: ["get-log-levels", "--json"], expect: { method: "GET", path: "/api/v1/system/config/log" } },
     { args: ["set-log-level", "--pkg-name", "ragflow", "--level", "DEBUG", "--json"], expect: { method: "PUT", path: "/api/v1/system/config/log", body: { pkg_name: "ragflow", level: "DEBUG" } } },
     { args: ["list-system-tokens", "--json"], expect: { method: "GET", path: "/api/v1/system/tokens" } },
@@ -441,6 +462,10 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
     { args: ["create-connector", "--dataset", "ds1", "--config", "{\"type\":\"web\"}", "--json"], expect: { method: "POST", path: "/api/v1/datasets/ds1/connectors", body: { type: "web" } } },
     { args: ["run-raptor", "--dataset", "ds1", "--json"], expect: { method: "POST", path: "/api/v1/datasets/ds1/run_raptor" } },
     { args: ["trace-raptor", "--dataset", "ds1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/trace_raptor" } },
+    { args: ["get-knowledge-graph", "--dataset", "ds1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/knowledge_graph" } },
+    { args: ["delete-knowledge-graph", "--dataset", "ds1", "--json"], expect: { method: "DELETE", path: "/api/v1/datasets/ds1/knowledge_graph" } },
+    { args: ["run-graphrag", "--dataset", "ds1", "--json"], expect: { method: "POST", path: "/api/v1/datasets/ds1/run_graphrag" } },
+    { args: ["trace-graphrag", "--dataset", "ds1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/trace_graphrag" } },
     // chat/agent session features
     { args: ["preview-document", "--id", "doc1", "--json"], expect: { method: "GET", path: "/api/v1/documents/doc1/preview" } },
     { args: ["ingest-documents", "--doc-ids", "doc1", "doc2", "--run", "1", "--delete", "--json"], expect: { method: "POST", path: "/api/v1/documents/ingest", body: { doc_ids: ["doc1", "doc2"], run: "1", delete: true } } },
@@ -463,7 +488,7 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
     { args: ["list-provider-models", "--name", "OpenAI", "--api-key", "sk-x", "--json"], expect: { method: "GET", path: "/api/v1/providers/OpenAI/models", query: { api_key: "sk-x" } } },
     { args: ["list-provider-instances", "--name", "OpenAI", "--json"], expect: { method: "GET", path: "/api/v1/providers/OpenAI/instances" } },
     { args: ["get-provider-instance", "--name", "OpenAI", "--instance", "default", "--json"], expect: { method: "GET", path: "/api/v1/providers/OpenAI/instances/default" } },
-    { args: ["create-provider-instance", "--name", "OpenAI", "--instance", "default", "--api-key", "sk-x", "--json"], expect: { method: "POST", path: "/api/v1/providers/OpenAI/instances", body: { instance_name: "default", api_key: "sk-x" } } },
+    { args: ["create-provider-instance", "--name", "OpenAI", "--instance", "default", "--api-key-file", providerApiKey, "--json"], expect: { method: "POST", path: "/api/v1/providers/OpenAI/instances", body: { instance_name: "default", api_key: "sk-file" } } },
     { args: ["delete-provider-instances", "--name", "OpenAI", "--instances", "default", "--json"], expect: { method: "DELETE", path: "/api/v1/providers/OpenAI/instances", body: { instances: ["default"] } } },
     { args: ["verify-provider", "--name", "OpenAI", "--api-key", "sk-x", "--json"], expect: { method: "POST", path: "/api/v1/providers/OpenAI/connection", body: { api_key: "sk-x" } } },
     { args: ["list-instance-models", "--name", "OpenAI", "--instance", "default", "--supported", "--json"], expect: { method: "GET", path: "/api/v1/providers/OpenAI/instances/default/models", query: { supported: "true" } } },
@@ -502,6 +527,18 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
   } finally {
     await server.close();
     fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("CLI rejects unknown options before making a request", async () => {
+  const server = await createMockServer();
+  try {
+    const result = await runCli(server.url, ["run-raptor", "--dataset", "ds1", "--method", "raptor", "--json"]);
+    assert.equal(result.status, 1);
+    assert.match(result.stdout, /Unknown option: --method/);
+    assert.equal(server.requests.length, 0);
+  } finally {
+    await server.close();
   }
 });
 
@@ -659,7 +696,7 @@ test("delete-chunks retries transient zero-delete response", async () => {
     assert.equal(deleteRequests.length, 2);
     const exactLookups = server.requests.filter((record) => {
       const url = new URL(record.url, "http://127.0.0.1");
-      return record.method === "GET" && url.pathname === "/api/v1/datasets/ds1/documents/doc1/chunks" && url.searchParams.get("id") === "chunk1";
+      return record.method === "GET" && url.pathname === "/api/v1/datasets/ds1/documents/doc1/chunks/chunk1";
     });
     assert.equal(exactLookups.length, 1);
   } finally {

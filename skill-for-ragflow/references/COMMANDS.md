@@ -1,6 +1,6 @@
 # Command Reference
 
-Full CLI reference for `scripts/ragflow.js`, organized by workflow scenario rather than resource type.
+Practical CLI reference for `scripts/ragflow.js`, organized around common RAGFlow workflows. It intentionally prioritizes daily operations over exhaustive REST API coverage.
 
 Use `--json` on any command to suppress status text and print only machine-readable JSON.
 JSON-valued options such as `--parser-config`, `--prompt-config`, and `--dsl` accept either inline JSON or `@path/to/file.json`.
@@ -44,7 +44,7 @@ On command failure with `--json`, the CLI exits non-zero and prints a structured
 | [Agent Operation](#agent-operation) | Create tool-capable agents, manage sessions, and run agent chat |
 | [Embedded Website Access](#embedded-website-access) | Generate iframe/widget code and call shared chatbots/agentbots |
 | [Discovery and Configuration](#discovery-and-configuration) | Inspect available LLM models, and manage model providers/instances (v0.26.4) |
-| [System Operations](#system-operations) | Read version and log-level settings |
+| [System Operations](#system-operations) | Check health/version and inspect log-level settings |
 
 ## Knowledge Base Setup
 
@@ -72,7 +72,7 @@ Typical flow:
 
 List connectors for a dataset.
 
-**Options**: `--dataset`, `--page`, `--pageSize`, `--json`
+**Options**: `--dataset`, `--page`, `--page-size`, `--json`
 
 ### `create-connector`
 
@@ -103,6 +103,7 @@ node {baseDir}/scripts/ragflow.js get-document --dataset <id> --id <doc_id>
 node {baseDir}/scripts/ragflow.js update-document --dataset <id> --id <doc_id> --name "New Name"
 node {baseDir}/scripts/ragflow.js update-document --dataset <id> --id <doc_id> --parser-config @parser_config.json --meta-fields @meta_fields.json
 node {baseDir}/scripts/ragflow.js metadata-summary --dataset <id> --doc-ids <doc_id1> <doc_id2>
+node {baseDir}/scripts/ragflow.js update-metadata --dataset <id> --config @metadata_update.json
 node {baseDir}/scripts/ragflow.js delete-documents --dataset <id> --ids <doc_id1>
 node {baseDir}/scripts/ragflow.js download-document --dataset <id> --id <doc_id>
 node {baseDir}/scripts/ragflow.js preview-document --id <doc_id>
@@ -143,6 +144,7 @@ The `run` filter accepts either numeric values (`0`-`4`) or these text labels.
 ```bash
 node {baseDir}/scripts/ragflow.js list-chunks --dataset <id> --document <doc_id>
 node {baseDir}/scripts/ragflow.js list-chunks --dataset <id> --document <doc_id> --id <chunk_id>
+node {baseDir}/scripts/ragflow.js get-chunk --dataset <id> --document <doc_id> --chunk <chunk_id>
 node {baseDir}/scripts/ragflow.js add-chunk --dataset <id> --document <doc_id> --content "chunk content"
 node {baseDir}/scripts/ragflow.js update-chunk --dataset <id> --document <doc_id> --chunk <chunk_id> --content "updated content"
 node {baseDir}/scripts/ragflow.js delete-chunks --dataset <id> --document <doc_id> --chunk-ids <id1>
@@ -207,6 +209,17 @@ Start RAPTOR processing for a dataset.
 Check RAPTOR processing status.
 
 **Options**: `--dataset`, `--json`
+
+### GraphRAG lifecycle
+
+```bash
+node {baseDir}/scripts/ragflow.js run-graphrag --dataset <id>
+node {baseDir}/scripts/ragflow.js trace-graphrag --dataset <id>
+node {baseDir}/scripts/ragflow.js get-knowledge-graph --dataset <id>
+node {baseDir}/scripts/ragflow.js delete-knowledge-graph --dataset <id>
+```
+
+Use `delete-knowledge-graph` only after confirming the target dataset.
 ## Information Retrieval
 
 Use this section when the user wants retrieval results directly instead of creating a chat assistant or agent.
@@ -264,6 +277,8 @@ Use the tenant model identifier format `<model_name>@<provider>` for `--llm-id`.
 ```bash
 node {baseDir}/scripts/ragflow.js list-sessions --chat <chat_id>
 node {baseDir}/scripts/ragflow.js create-session --chat <chat_id> --name "New Session"
+node {baseDir}/scripts/ragflow.js get-session --chat <chat_id> --session <session_id>
+node {baseDir}/scripts/ragflow.js update-session --chat <chat_id> --session <session_id> --name "Reviewed Session"
 node {baseDir}/scripts/ragflow.js delete-sessions --chat <chat_id> --ids <session_id1>
 ```
 
@@ -527,25 +542,26 @@ v0.26.4 adds provider/instance/model management under `/api/v1/providers`. An "i
 | `get-provider` | Get provider details | `--name` (required), `--json` |
 | `add-provider` | Add a provider for the tenant | `--name` (required), `--json` |
 | `delete-provider` | Remove a provider | `--name` (required), `--json` |
-| `list-provider-models` | List a provider's available models | `--name` (required), `--api-key`, `--base-url`, `--json` |
+| `list-provider-models` | List a provider's available models | `--name` (required), `--api-key-file`, `--base-url`, `--json` |
 | `list-provider-instances` | List a provider's instances | `--name` (required), `--json` |
 | `get-provider-instance` | Get one instance | `--name`, `--instance` (both required), `--json` |
-| `create-provider-instance` | Create an instance with credentials | `--name`, `--instance`, `--api-key` (required), `--base-url`, `--region`, `--model-info` (JSON), `--json` |
+| `create-provider-instance` | Create an instance with credentials | `--name`, `--instance`, provider key via env/file, `--base-url`, `--region`, `--model-info` (JSON), `--json` |
 | `delete-provider-instances` | Remove instances | `--name` (required), `--instances` (multiple, required), `--json` |
-| `verify-provider` | Test a connection / API key without persisting | `--name`, `--api-key` (required), `--base-url`, `--region`, `--json` |
+| `verify-provider` | Test a connection / API key without persisting | `--name`, provider key via env/file, `--base-url`, `--region`, `--json` |
 | `list-instance-models` | List models on an instance | `--name`, `--instance` (required), `--supported`, `--json` |
 | `add-instance-model` | Add a model to an instance | `--name`, `--instance`, `--model-name`, `--model-type` (required), `--max-tokens`, `--extra` (JSON), `--json` |
 | `set-model-status` | Enable or disable an instance model | `--name`, `--instance`, `--model-name`, `--status` (required), `--json` |
 
-**Example**: `node ragflow.js create-provider-instance --name OpenAI --instance default --api-key sk-... --json`
+**Example**: `node ragflow.js create-provider-instance --name OpenAI --instance default --api-key-file provider-key.txt --json`
 
-Treat `--api-key` values as sensitive. Pass them when needed, but do not echo them back to the user. The skill does not wrap the provider "chat to model" test endpoint (`POST /providers/<name>/instances/<instance>/models/<model_name>`); use `chat-session` or `agent-chat` to exercise a configured model instead.
+Prefer `RAGFLOW_PROVIDER_API_KEY` or `--api-key-file`; both keep provider credentials out of the process command line. `--api-key` remains for compatibility but can appear in shell history and process listings. The skill does not wrap the provider "chat to model" test endpoint (`POST /providers/<name>/instances/<instance>/models/<model_name>`); use `chat-session` or `agent-chat` to exercise a configured model instead.
 
 ## System Operations
 
-Use this section when the user needs version or log-level configuration.
+Use this section when the user needs a quick connectivity check, version information, or log-level configuration.
 
 ```bash
+node {baseDir}/scripts/ragflow.js system-health --json
 node {baseDir}/scripts/ragflow.js system-version
 node {baseDir}/scripts/ragflow.js get-log-levels
 node {baseDir}/scripts/ragflow.js set-log-level --pkg-name ragflow --level INFO

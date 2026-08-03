@@ -2,6 +2,8 @@
 
 | Problem | Cause | Solution |
 |---------|-------|----------|
+| `system-health` fails | The configured server is unavailable, the URL is wrong, or the API key cannot reach the health route | Check `RAGFLOW_URL`, then run `system-version`; inspect the structured error with `--json` |
+| `Unknown option: --...` | The CLI rejects typos and unsupported flags instead of silently ignoring them | Run `node scripts/ragflow.js --help` and use the documented kebab-case option |
 | "Model not authorized" | Requested model is not configured for this tenant, or the model/factory name does not match | Verify the model name, factory suffix, and tenant model settings; use a configured model from `list-models` |
 | "Embedding model identifier must follow `<model_name>@<provider>` format" | `create-dataset --embedding-model` used only the model name | Use a full identifier from `list-models`, for example `text-embedding-v4@Tongyi-Qianwen` |
 | `AttributeError("'int' object has no attribute 'split'")` from `create-chat` | A numeric model row ID from `list-models` was sent as `--llm-id` | Use `<model_name>@<provider>`, for example `qwen-turbo@Tongyi-Qianwen`, not the numeric `id` field |
@@ -25,7 +27,7 @@
 | A list command fails with a `page_size` error | RAGFlow v0.26.4 caps `page_size` at 100 on list endpoints | The CLI clamps `--page-size` to 100 and warns; lower the value or page through results |
 | `Invalid URL` | `RAGFLOW_URL` is empty or malformed | Use a server root such as `http://localhost:9380`; bare hosts like `localhost:9380` are normalized to `http://...` |
 | Connection refused | `RAGFLOW_URL` is wrong or the server is down | Verify the URL and that the RAGFlow server is running |
-| API key exposed in logs or chat | The API key was shared or logged | Never share `RAGFLOW_API_KEY` in chat; regenerate the key if leaked |
+| API key exposed in logs or chat | The API key was shared or logged | Never share keys in chat; regenerate leaked keys and prefer `RAGFLOW_PROVIDER_API_KEY` or `--api-key-file` for provider credentials |
 | Security warning on ClawHub install | The skill requires `RAGFLOW_API_KEY` which grants access to your RAGFlow deployment | Use a least-privilege API key, use HTTPS in production, and review permissions before approving |
 | "Connector authentication failed" | The external service rejected the connector credentials or the endpoint is unreachable | Verify the API key, secret, and base URL in the connector configuration |
 | "Invalid tag format" | Document tags were submitted in an unsupported format (e.g. nested objects) | Use simple strings or arrays of strings for document tags |

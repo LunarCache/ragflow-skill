@@ -4,13 +4,21 @@ A Codex/OpenCode skill for operating [RAGFlow](https://github.com/infiniflow/rag
 
 ## Features
 
-- **Full RAGFlow v0.26.4 API coverage** - datasets, documents (tags, ingestion pipeline, RAPTOR), parsing, chunks, retrieval, chat assistants, agents (structured output), embedded site access, model discovery, model providers, and connectors
+- **Daily RAGFlow v0.26.4 workflow coverage** - datasets, documents, parsing, chunks, metadata, retrieval, RAPTOR/GraphRAG, chat sessions, agents, embeds, model discovery, providers, connectors, and health checks
 - **Zero dependencies** - pure Node.js, no npm install required
 - **JSON-first output** - `--json` flag for machine-readable output suitable for pipelines
 - **Robust error handling** - automatic retries for transient failures, structured error envelopes
 - **Comprehensive documentation** - command reference, API examples, troubleshooting guide
 
 ## Update Notes
+
+### v1.7.0 (RAGFlow v0.26.4)
+
+- Reframed the skill around common operational workflows instead of claiming exhaustive REST API coverage.
+- Added direct chunk lookup, batch metadata update, chat-session inspect/update, GraphRAG lifecycle, and system health commands.
+- Added strict unknown-option validation so mistyped flags fail before any request is sent.
+- Corrected connector and RAPTOR examples, canonical skill invocation, and Codex metadata placement.
+- Added provider-key file/environment input to keep credentials out of normal command-line usage.
 
 ### v1.6.0 (RAGFlow v0.26.4)
 
@@ -138,15 +146,16 @@ ragflow-skill/
 | **Dataset** | `create-dataset`, `list-datasets`, `get-dataset`, `update-dataset`, `delete-datasets` |
 | **Document** | `upload-documents`, `ingest-documents`, `list-documents`, `get-document`, `update-document`, `delete-documents`, `download-document`, `preview-document`, `metadata-summary` |
 | **Parsing** | `start-parsing`, `stop-parsing`, `wait-parsing` |
-| **Chunk** | `list-chunks`, `add-chunk`, `update-chunk`, `delete-chunks`, `get-document-graph`, `delete-document-graph` |
+| **Chunk** | `list-chunks`, `get-chunk`, `add-chunk`, `update-chunk`, `delete-chunks`, `get-document-graph`, `delete-document-graph` |
 | **Retrieval** | `retrieve` |
+| **Knowledge graph** | `run-graphrag`, `trace-graphrag`, `get-knowledge-graph`, `delete-knowledge-graph` |
 | **Chat** | `create-chat`, `list-chats`, `get-chat`, `update-chat`, `patch-chat`, `delete-chats` |
-| **Session** | `create-session`, `list-sessions`, `delete-sessions`, `chat`, `chat-session` |
+| **Session** | `create-session`, `list-sessions`, `get-session`, `update-session`, `delete-sessions`, `chat`, `chat-session` |
 | **Agent** | `create-agent`, `list-agents`, `get-agent`, `update-agent`, `delete-agents` |
 | **Agent Session** | `create-agent-session`, `list-agent-sessions`, `delete-agent-sessions`, `agent-chat` |
 | **Embed** | `list-system-tokens`, `create-system-token`, `delete-system-token`, `embed-code`, `embed-info`, `embed-chat`, `embed-agent-chat` |
 | **Models** | `list-models` |
-| **System** | `system-version`, `get-log-levels`, `set-log-level` |
+| **System** | `system-health`, `system-version`, `get-log-levels`, `set-log-level` |
 
 ## Testing
 

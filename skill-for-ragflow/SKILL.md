@@ -1,8 +1,9 @@
 ---
 name: skill-for-ragflow
-description: Operate RAGFlow v0.26.4 deployments through the bundled Node CLI and API client. Use when user needs to manage RAGFlow datasets, documents, uploads, parsing, chunks, retrieval, chat assistants, chat sessions, agents, agent sessions, embedded website access, metadata filters, model discovery, model providers, system settings, or API diagnostics. Also use when the user asks about knowledge bases, document chunking, vector retrieval, embed code, or RAG workflows and the current context explicitly involves a RAGFlow server or deployment.
-version: 1.6.0
+description: Operate RAGFlow v0.26.4 deployments through a bundled Node CLI for everyday knowledge-base setup, document ingestion, parsing, retrieval, chat assistants, agents, GraphRAG, connectors, models, and diagnostics. Use when a request explicitly involves a RAGFlow server, dataset, document pipeline, or RAGFlow agent.
 metadata:
+  version: 1.7.0
+  compatibility: RAGFlow v0.26.4
   openclaw:
     requires:
       bins:
@@ -16,19 +17,18 @@ metadata:
 
 # RAGFlow Skill
 
-Use this skill to operate RAGFlow through `scripts/ragflow.js`. The CLI wraps the full v0.26.4 REST API - every action goes through `node {baseDir}/scripts/ragflow.js <command> [options]`. Prefer `--json` on any command when the output will be parsed or chained into another step.
+Operate common RAGFlow v0.26.4 workflows through `node {baseDir}/scripts/ragflow.js <command> [options]`. Prefer `--json` when parsing or chaining results. This skill intentionally prioritizes daily operations over exhaustive API coverage.
 
 ## Requirements
 
 - Set `RAGFLOW_URL` and `RAGFLOW_API_KEY` in the environment or this skill's `.env`.
 - Use Node.js to run bundled scripts.
-- Tune chunk deletion retries only when needed with `RAGFLOW_DELETE_CHUNK_RETRIES` and `RAGFLOW_DELETE_CHUNK_RETRY_DELAY_MS`.
-- Tune the chunk deletion diagnostic script only when needed with `RAGFLOW_REPRO_TIMEOUT_MS`, `RAGFLOW_REPRO_DELETE_RETRIES`, `RAGFLOW_REPRO_DELETE_RETRY_DELAY_MS`, and `RAGFLOW_REPRO_EMBEDDING_MODEL`.
+- Run `system-health --json` after first-time setup to verify connectivity and authentication.
 
 ## Security Notes
 
 - **Use HTTPS in production.** Production deployments should use `https://` for `RAGFLOW_URL` to protect the API key in transit. Local development (`http://localhost`) is acceptable for testing.
-- **Use least-privilege API keys.** Consider creating dedicated API keys with minimal permissions for specific workflows rather than using admin-level keys.
+- **Use a dedicated, rotatable API key for automation.** RAGFlow v0.26.4 API keys are tenant-scoped rather than permission-scoped.
 - **Protect your API key.** Never share `RAGFLOW_API_KEY` in chat messages or commit it to version control. Use environment variables or the skill's `.env` file.
 
 ## Quick Command Reference
@@ -36,20 +36,21 @@ Use this skill to operate RAGFlow through `scripts/ragflow.js`. The CLI wraps th
 | Scenario | Commands |
 |----------|----------|
 | **Knowledge base setup** | `create-dataset`, `list-datasets`, `get-dataset`, `update-dataset`, `delete-datasets` |
-| **Document ingestion** | `upload-documents`, `ingest-documents`, `list-documents`, `get-document`, `update-document`, `delete-documents`, `download-document`, `preview-document`, `metadata-summary` |
-| **Parsing & chunking** | `start-parsing`, `stop-parsing`, `wait-parsing`, `list-chunks`, `add-chunk`, `update-chunk`, `delete-chunks`, `get-document-graph`, `delete-document-graph` |
+| **Document ingestion** | `upload-documents`, `ingest-documents`, `list-documents`, `get-document`, `update-document`, `delete-documents`, `download-document`, `preview-document`, `metadata-summary`, `update-metadata` |
+| **Parsing & chunking** | `start-parsing`, `stop-parsing`, `wait-parsing`, `list-chunks`, `get-chunk`, `add-chunk`, `update-chunk`, `delete-chunks`, `get-document-graph`, `delete-document-graph` |
 | **Direct retrieval** | `retrieve` |
 | **Chat assistant** | `create-chat`, `list-chats`, `get-chat`, `update-chat`, `patch-chat`, `delete-chats` |
-| **Chat sessions** | `create-session`, `list-sessions`, `delete-sessions`, `chat`, `chat-session` |
+| **Chat sessions** | `create-session`, `list-sessions`, `get-session`, `update-session`, `delete-sessions`, `chat`, `chat-session` |
 | **Agent** | `create-agent`, `list-agents`, `get-agent`, `update-agent`, `delete-agents` |
 | **Agent Tags** | `list-agent-tags`, `update-agent-tags` |
 | **Agent sessions** | `create-agent-session`, `list-agent-sessions`, `delete-agent-sessions`, `agent-chat` |
 | **Connector** | `list-connectors`, `create-connector`, `get-connector`, `update-connector`, `delete-connector` |
 | **RAPTOR** | `run-raptor`, `trace-raptor` |
+| **GraphRAG** | `get-knowledge-graph`, `delete-knowledge-graph`, `run-graphrag`, `trace-graphrag` |
 | **Embedded website access** | `list-system-tokens`, `create-system-token`, `delete-system-token`, `embed-code`, `embed-info`, `embed-chat`, `embed-agent-chat` |
 | **Model discovery** | `list-models`, `list-added-models`, `list-default-models`, `set-default-model` |
 | **Model providers** | `list-providers`, `get-provider`, `add-provider`, `delete-provider`, `list-provider-models`, `list-provider-instances`, `get-provider-instance`, `create-provider-instance`, `delete-provider-instances`, `verify-provider`, `list-instance-models`, `add-instance-model`, `set-model-status` |
-| **System** | `system-version`, `get-log-levels`, `set-log-level` |
+| **System** | `system-version`, `system-health`, `get-log-levels`, `set-log-level` |
 
 ## Common Workflows
 
@@ -73,6 +74,8 @@ Use this skill to operate RAGFlow through `scripts/ragflow.js`. The CLI wraps th
 2. `create-agent-session --agent <agent_id>`
 3. `agent-chat --agent <agent_id> --session <session_id> --question "Hello"`
 
+`agent-chat` streams by default. Use `--stream false` for one final JSON response.
+
 ### Agent tags workflow
 
 1. `list-agent-tags --agent <agent_id>`
@@ -80,8 +83,8 @@ Use this skill to operate RAGFlow through `scripts/ragflow.js`. The CLI wraps th
 
 ### Connector workflow
 
-1. `create-connector --name "GitHub" --type github --token <token>`
-2. `list-connectors`
+1. `create-connector --dataset <id> --config @connector.json`
+2. `list-connectors --dataset <id>`
 3. `get-connector --id <id>`
 
 ### Model provider workflow (v0.26.4)
@@ -96,9 +99,14 @@ Use `verify-provider --name <provider> --api-key <key>` to test a key without pe
 
 ### RAPTOR workflow
 
-1. `run-raptor --dataset <id> --method raptor`
-2. `trace-raptor --id <id>`
-`agent-chat` is streaming by default. Use `--stream false` when you need the final JSON result in one response.
+1. `run-raptor --dataset <id>`
+2. `trace-raptor --dataset <id>`
+
+### GraphRAG workflow
+
+1. `run-graphrag --dataset <id>`
+2. `trace-graphrag --dataset <id>`
+3. `get-knowledge-graph --dataset <id>`
 
 ### Embedded website access
 
@@ -120,7 +128,7 @@ The first step in any RAGFlow operation is resolving the target resource ID. Aft
 
 ## Key Constraints
 
-- **Destructive deletes need confirmation.** RAGFlow deletes are immediate and irreversible. Confirm before running `delete-datasets`, `delete-documents`, `delete-chunks`, `delete-chats`, `delete-sessions`, or `delete-agents` - unless the resource is a temporary artifact you created in the same workflow and the user asked you to clean up.
+- **Confirm destructive operations.** Confirm before any `delete-*` command or before `update-metadata` with `deletes` or an all-document selector, unless cleaning up temporary resources created in the same requested workflow.
 - **Upload and parsing are separate steps.** RAGFlow does not auto-parse on upload because different documents may need different chunk methods. Upload first, adjust config if needed, then start parsing explicitly.
 - **Use `ingest-documents` only for ingestion-pipeline datasets.** `start-parsing`/`stop-parsing` wrap the built-in chunking pipeline. RAGFlow v0.26.4 uses `POST /api/v1/documents/ingest` for datasets configured with an ingestion pipeline; pass `--run 1` to start/rerun and `--run 2` to cancel.
 - **Preserve user-uploaded filenames.** RAGFlow stores the multipart `filename` as the document name. If a user attachment is materialized as a task ID or temporary path, pass the original filename inline: `upload-documents --files <original-name>=<path>`.
@@ -142,19 +150,4 @@ The first step in any RAGFlow operation is resolving the target resource ID. Aft
 
 ## Output Format
 
-When presenting results to the user, follow the templates in [references/REFERENCE.md](references/REFERENCE.md). Key conventions:
-
-- **Use a two-layer output model.** For execution, chaining, and parsing, prefer the CLI's raw `--json` output. For the final user-facing response, convert that raw result into a concise summary that follows the reference templates instead of pasting the CLI payload verbatim.
-- **3+ items with attributes** -> Table, abbreviating long IDs
-- **Sequential steps** -> Numbered list
-- **Parsing status** -> Use labels: `UNSTART`, `RUNNING`, `CANCEL`, `DONE`, `FAIL`
-- **Search results** -> Table with similarity scores, content as quote blocks
-- **Embed/token operations** -> Summarize what was generated or fetched; redact `token`, `beta`, and any `auth=` query value unless the user explicitly asks for the secret
-- **Errors** -> Show code and human-readable message
-
-For embed and token-related commands, apply these response rules:
-
-1. Use the CLI result internally, but do not mirror the raw JSON back to the user by default.
-2. Lead with the operational outcome: what resource was targeted, what mode was used, whether a token was reused or created, and whether a session was created or reused.
-3. Only include the minimum secret material needed to complete the user's request. If the user did not explicitly ask for the value, redact it.
-4. If the user needs copy-paste embed material, provide it only when explicitly requested and call out that it contains sensitive auth data.
+Use raw `--json` internally, then summarize the operational result. Preserve the server's parsing labels (`UNSTART`, `RUNNING`, `CANCEL`, `DONE`, `FAIL`) and similarity scores. Redact API keys, system tokens, beta values, and `auth=` query values unless the user explicitly requests copy-paste secret material. Read [references/REFERENCE.md](references/REFERENCE.md) only when a result needs a domain-specific response template.

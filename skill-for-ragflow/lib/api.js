@@ -385,11 +385,10 @@ class RagflowClient {
   }
 
   async getChunk(datasetId, documentId, chunkId) {
-    const result = await this.listChunks(datasetId, documentId, { id: chunkId });
-    const chunks = result?.chunks || (Array.isArray(result) ? result : []);
-    const chunk = chunks.find((item) => item.id === chunkId) || chunks[0];
-    if (!chunk) throw new Error(`Chunk not found: ${datasetId}/${chunkId}`);
-    return chunk;
+    return this.request(
+      "GET",
+      `/datasets/${datasetId}/documents/${documentId}/chunks/${chunkId}`
+    );
   }
 
   async _existingChunkIds(datasetId, documentId, chunkIds) {
@@ -475,6 +474,10 @@ class RagflowClient {
   async retrieve(params) {
     return this.request("POST", "/retrieval", { json: params });
   }
+
+  async updateMetadata(datasetId, data) {
+    return this.request("POST", `/datasets/${datasetId}/metadata/update`, { json: data });
+  }
   // ── Connector ──
 
   async listConnectors(datasetId, params = {}) {
@@ -506,6 +509,22 @@ class RagflowClient {
 
   async traceRaptor(datasetId) {
     return this.request("GET", `/datasets/${datasetId}/trace_raptor`);
+  }
+
+  async getKnowledgeGraph(datasetId) {
+    return this.request("GET", `/datasets/${datasetId}/knowledge_graph`);
+  }
+
+  async deleteKnowledgeGraph(datasetId) {
+    return this.request("DELETE", `/datasets/${datasetId}/knowledge_graph`);
+  }
+
+  async runGraphRag(datasetId) {
+    return this.request("POST", `/datasets/${datasetId}/run_graphrag`);
+  }
+
+  async traceGraphRag(datasetId) {
+    return this.request("GET", `/datasets/${datasetId}/trace_graphrag`);
   }
 
   // ── Chat Assistant ──
@@ -544,6 +563,14 @@ class RagflowClient {
 
   async createSession(chatId, data = {}) {
     return this.request("POST", `/chats/${chatId}/sessions`, { json: data });
+  }
+
+  async getSession(chatId, sessionId) {
+    return this.request("GET", `/chats/${chatId}/sessions/${sessionId}`);
+  }
+
+  async updateSession(chatId, sessionId, data) {
+    return this.request("PATCH", `/chats/${chatId}/sessions/${sessionId}`, { json: data });
   }
 
   async deleteSessions(chatId, ids) {
@@ -827,6 +854,10 @@ class RagflowClient {
 
   async getSystemVersion() {
     return this.request("GET", "/system/version");
+  }
+
+  async getSystemHealth() {
+    return this.request("GET", "/system/healthz");
   }
 
   async getLogLevels() {

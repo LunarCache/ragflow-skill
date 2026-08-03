@@ -68,6 +68,30 @@ test("SKILL.md constraints reference v0.26.4", () => {
   assert.match(skill, /page_size/, "SKILL.md constraints should document the page_size cap");
 });
 
+test("skill metadata follows Codex conventions and invokes the canonical skill name", () => {
+  const skill = read(path.join("skill-for-ragflow", "SKILL.md"));
+  const openai = read(path.join("skill-for-ragflow", "agents", "openai.yaml"));
+
+  assert.doesNotMatch(skill, /^version:/m, "version should live under metadata");
+  assert.match(skill, /^\s+version: 1\.7\.0$/m);
+  assert.match(openai, /\$skill-for-ragflow\b/);
+  assert.doesNotMatch(openai, /\$ragflow-skill\b/);
+
+  const shortDescription = openai.match(/short_description:\s*"([^"]+)"/)?.[1] || "";
+  assert.ok(shortDescription.length >= 25 && shortDescription.length <= 64, `short_description length was ${shortDescription.length}`);
+});
+
+test("SKILL.md describes daily workflow scope and keeps examples executable", () => {
+  const skill = read(path.join("skill-for-ragflow", "SKILL.md"));
+
+  assert.doesNotMatch(skill, /full v0\.26\.4 REST API/i);
+  assert.match(skill, /daily|common|core/i);
+  assert.match(skill, /create-connector --dataset <id> --config @connector\.json/);
+  assert.match(skill, /trace-raptor --dataset <id>/);
+  assert.doesNotMatch(skill, /run-raptor[^\n]*--method/);
+  assert.doesNotMatch(skill, /trace-raptor[^\n]*--id/);
+});
+
 test("SKILL.md Quick Command Reference includes new commands", () => {
   const skill = read(path.join("skill-for-ragflow", "SKILL.md"));
 

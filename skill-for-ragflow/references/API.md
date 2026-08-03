@@ -9,8 +9,10 @@
 - [Parsing](#parsing)
 - [Chunk](#chunk)
 - [Retrieval](#retrieval)
+- [Metadata](#metadata)
 - [Connector](#connector)
 - [RAPTOR](#raptor)
+- [GraphRAG](#graphrag)
 - [Chat Assistant](#chat-assistant)
 - [Session](#session)
 - [Chat Conversation](#chat-conversation)
@@ -238,6 +240,16 @@ const results = await client.retrieve({
 });
 ```
 
+## Metadata
+
+```javascript
+// Batch-update or delete metadata for selected documents.
+await client.updateMetadata("<dataset_id>", {
+  selector: { document_ids: ["<doc_id>"] },
+  updates: [{ key: "status", value: "reviewed" }],
+});
+```
+
 ## Connector
 
 ```javascript
@@ -265,6 +277,15 @@ const task = await client.runRaptor(datasetId);
 
 // Check progress
 const progress = await client.traceRaptor(datasetId);
+```
+
+## GraphRAG
+
+```javascript
+const graph = await client.getKnowledgeGraph(datasetId);
+await client.runGraphRag(datasetId);
+const progress = await client.traceGraphRag(datasetId);
+await client.deleteKnowledgeGraph(datasetId);
 ```
 
 ## Chat Assistant
@@ -304,6 +325,10 @@ const sessions = await client.listSessions("<chat_id>", { page: 1 });
 
 // Create a session
 const session = await client.createSession("<chat_id>", { name: "Q&A Session" });
+
+// Inspect or rename a session
+const current = await client.getSession("<chat_id>", "<session_id>");
+await client.updateSession("<chat_id>", "<session_id>", { name: "Reviewed Q&A" });
 
 // Delete sessions by IDs
 await client.deleteSessions("<chat_id>", ["<session_id1>"]);
@@ -520,6 +545,9 @@ Treat `api_key` values as sensitive: pass them in, but do not echo them back to 
 ```javascript
 // Get the server version
 const version = await client.getSystemVersion();
+
+// Check service health
+const health = await client.getSystemHealth();
 
 // Inspect and update log levels
 const levels = await client.getLogLevels();
