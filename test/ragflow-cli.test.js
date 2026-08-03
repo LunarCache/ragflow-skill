@@ -545,6 +545,9 @@ test("CLI rejects unknown options before making a request", async () => {
     const irrelevant = await runCli(server.url, ["run-raptor", "--dataset", "ds1", "--name", "typo", "--json"]);
     assert.equal(irrelevant.status, 1);
     assert.match(irrelevant.stdout, /Unknown option for run-raptor: --name/);
+    const streaming = await runCli(server.url, ["agent-chat", "--agent", "agent1", "--session", "asess1", "--question", "Hello", "--name", "typo", "--json"]);
+    assert.equal(streaming.status, 1);
+    assert.match(streaming.stdout, /Unknown option for agent-chat: --name/);
     assert.equal(server.requests.length, 0);
   } finally {
     await server.close();

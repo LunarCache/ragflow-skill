@@ -197,11 +197,13 @@ function validateOptions(opts) {
 
 function createClient(options = {}) {
   const client = createApiClient(options);
-  const request = client.request.bind(client);
-  client.request = (...requestArgs) => {
-    validateUnusedOptions();
-    return request(...requestArgs);
-  };
+  for (const method of ["request", "_streamRequest"]) {
+    const send = client[method].bind(client);
+    client[method] = (...requestArgs) => {
+      validateUnusedOptions();
+      return send(...requestArgs);
+    };
+  }
   return client;
 }
 
