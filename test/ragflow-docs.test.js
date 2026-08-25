@@ -64,7 +64,7 @@ test("SKILL.md keeps core guardrails concise and delegates route details", () =>
   const constraints = skill.match(/## Key Constraints\s+([\s\S]*?)\s+## Output Format/)?.[1] || "";
 
   assert.match(skill, /references\/API\.md/);
-  assert.match(api, /v0\.26\.4/);
+  assert.match(api, /v0\.27\.0/);
   assert.match(constraints, /pass-all-history/, "constraints should preserve session-history intent");
   assert.match(constraints, /100-item list limit/, "constraints should preserve pagination behavior");
   assert.doesNotMatch(constraints, /(?:GET|POST|PATCH|DELETE) \/api\/v1/, "route shapes belong in API.md");
@@ -87,9 +87,9 @@ test("skill metadata follows Codex conventions and invokes the canonical skill n
 test("SKILL.md describes daily workflow scope and keeps examples executable", () => {
   const skill = read(path.join("skill-for-ragflow", "SKILL.md"));
 
-  assert.doesNotMatch(skill, /full v0\.26\.4 REST API/i);
+  assert.doesNotMatch(skill, /full v0\.27\.0 REST API/i);
   assert.match(skill, /daily|common|core/i);
-  assert.match(skill, /create-connector --dataset <id> --config @connector\.json/);
+  assert.match(skill, /create-connector --config @connector\.json/);
   assert.match(skill, /trace-raptor --dataset <id>/);
   assert.doesNotMatch(skill, /run-raptor[^\n]*--method/);
   assert.doesNotMatch(skill, /trace-raptor[^\n]*--id/);
@@ -173,7 +173,7 @@ test("new command names documented in COMMANDS.md", () => {
   assert.match(commands, /trace-raptor/, "COMMANDS.md should document trace-raptor command");
 });
 
-test("v0.26.4 provider/model commands documented in SKILL.md and COMMANDS.md", () => {
+test("v0.27.0 provider/model commands documented in SKILL.md and COMMANDS.md", () => {
   const skill = read(path.join("skill-for-ragflow", "SKILL.md"));
   const commands = read(path.join("skill-for-ragflow", "references", "COMMANDS.md"));
   const api = read(path.join("skill-for-ragflow", "references", "API.md"));
@@ -196,7 +196,7 @@ test("v0.26.4 provider/model commands documented in SKILL.md and COMMANDS.md", (
   assert.match(api, /setDefaultModel/, "API.md should document setDefaultModel");
 });
 
-test("version string consistency: all docs reference v0.26.4, not older versions", () => {
+test("version string consistency: all docs reference v0.27.0, not older versions", () => {
   const skill = read(path.join("skill-for-ragflow", "SKILL.md"));
   const commands = read(path.join("skill-for-ragflow", "references", "COMMANDS.md"));
   const api = read(path.join("skill-for-ragflow", "references", "API.md"));
@@ -213,10 +213,11 @@ test("version string consistency: all docs reference v0.26.4, not older versions
     ["TROUBLESHOOTING.md", troubleshooting],
     ["openai.yaml", openai],
   ]) {
+    assert.doesNotMatch(content, /v0\.26\.4/, `${name} should not reference v0.26.4`);
     assert.doesNotMatch(content, /v0\.25\.2/, `${name} should not reference v0.25.2`);
     assert.doesNotMatch(content, /0\.25\.6/, `${name} should not reference v0.25.6`);
   }
 
-  // Assert SKILL.md references v0.26.4 in description
-  assert.match(skill, /v0\.26\.4/, "SKILL.md description should reference v0.26.4");
+  // Assert SKILL.md references v0.27.0 in description
+  assert.match(skill, /v0\.27\.0/, "SKILL.md description should reference v0.27.0");
 });

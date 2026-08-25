@@ -46,15 +46,11 @@ function createStatefulMockServer() {
     datasets: new Map(),
     chats: new Map(),
     agents: new Map(),
-    models: {
-      OpenAI: {
-        llm: [
-          { id: "model-a", name: "Model A", type: "chat", status: 1, used_token: 7 },
-          { id: "model-b", name: "Model B", type: "embedding", status: 1 },
-        ],
-      },
-    },
-    system: { version: "v0.26.4", logLevels: { ragflow: "INFO" } },
+    models: [
+      { model_id: "model-a", name: "Model A", model_type: "chat", provider_name: "OpenAI", enable: true },
+      { model_id: "model-b", name: "Model B", model_type: "embedding", provider_name: "OpenAI", enable: true },
+    ],
+    system: { version: "v0.27.0", logLevels: { ragflow: "INFO" } },
   };
   const counters = {
     dataset: 0,
@@ -94,7 +90,7 @@ function createStatefulMockServer() {
       const agentCompletionMatch = pathname.match(/^\/api\/v1\/agents\/([^/]+)\/completions$/);
       const agentCompletionNewMatch = pathname.match(/^\/api\/v1\/agents\/chat\/completion$/);
 
-      if (pathname === "/v1/llm/my_llms") {
+      if (pathname === "/api/v1/models") {
         jsonResponse(res, state.models);
         return;
       }

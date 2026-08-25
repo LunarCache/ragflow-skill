@@ -499,13 +499,13 @@ class RagflowClient {
   }
   // ── Connector ──
 
-  async listConnectors(datasetId, params = {}) {
+  async listConnectors(params = {}) {
     const query = this._buildQuery(params);
-    return this.request("GET", `/datasets/${datasetId}/connectors?${query.toString()}`);
+    return this.request("GET", `/connectors?${query.toString()}`);
   }
 
-  async createConnector(datasetId, data) {
-    return this.request("POST", `/datasets/${datasetId}/connectors`, { json: data });
+  async createConnector(data) {
+    return this.request("POST", `/connectors`, { json: data });
   }
 
   async getConnector(connectorId) {
@@ -614,7 +614,7 @@ class RagflowClient {
       const lastUserMessage = userMessages[userMessages.length - 1];
       if (lastUserMessage) payload.question = lastUserMessage.content;
     }
-    // v0.26.4: preserve messages when pass_all_history_messages is set
+    // preserve messages when pass_all_history_messages is set
     if (!payload.pass_all_history_messages && !payload.pass_all_history) {
       delete payload.messages;
     }
@@ -760,12 +760,20 @@ class RagflowClient {
 
   async listModels(params = {}) {
     const query = this._buildQuery(params);
+    const suffix = query.toString();
+    return this.request("GET", `/models${suffix ? `?${suffix}` : ""}`);
+  }
+
+  // Legacy model discovery (RAGFlow v0.26.x): factory-grouped model catalog.
+  // Superseded by GET /api/v1/models in v0.27.0 but kept for fallback.
+  async listModelsLegacy(params = {}) {
+    const query = this._buildQuery(params);
     return this.request("GET", `/llm/my_llms?${query.toString()}`, {
       apiPrefix: "/v1",
     });
   }
 
-  // ── Tenant Models (v0.26.4) ──
+  // ── Tenant Models ──
 
   async listAddedModels(params = {}) {
     const query = this._buildQuery(params);
@@ -781,7 +789,7 @@ class RagflowClient {
     return this.request("PATCH", "/models/default", { json: data });
   }
 
-  // ── Model Providers (v0.26.4) ──
+  // ── Model Providers ──
 
   async listProviders(params = {}) {
     const query = this._buildQuery(params);

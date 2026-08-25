@@ -377,9 +377,9 @@ test("downloadDocumentById routes correctly", async () => {
   }
 });
 
-test("listConnectors returns connectors for dataset", async () => {
+test("listConnectors returns connectors for tenant", async () => {
   const server = http.createServer((req, res) => {
-    if (req.method === "GET" && req.url === "/api/v1/datasets/dataset123/connectors") {
+    if (req.method === "GET" && req.url === "/api/v1/connectors") {
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({
         code: 0,
@@ -408,7 +408,7 @@ test("listConnectors returns connectors for dataset", async () => {
 
   try {
     const client = createClient();
-    const result = await client.listConnectors("dataset123");
+    const result = await client.listConnectors();
     assert.deepEqual(result, [
       {
         id: "conn123",
@@ -433,7 +433,7 @@ test("createConnector sends correct payload", async () => {
     config: { url: "https://api.example.com", method: "GET" },
   };
   const server = http.createServer((req, res) => {
-    if (req.method === "POST" && req.url === "/api/v1/datasets/dataset123/connectors") {
+    if (req.method === "POST" && req.url === "/api/v1/connectors") {
       const chunks = [];
       req.on("data", (chunk) => chunks.push(chunk));
       req.on("end", () => {
@@ -461,7 +461,7 @@ test("createConnector sends correct payload", async () => {
 
   try {
     const client = createClient();
-    const result = await client.createConnector("dataset123", connectorData);
+    const result = await client.createConnector(connectorData);
     assert.deepEqual(result, { id: "conn123", ...connectorData });
   } finally {
     if (previousUrl === undefined) delete process.env.RAGFLOW_URL;
@@ -835,7 +835,7 @@ test("chatSession deletes messages when pass_all_history_messages is absent", as
   }
 });
 
-// ── v0.26.4 provider / model management ──
+// ── provider / model management ──
 
 test("daily workflow client methods build correct method/url/body", async () => {
   let last = null;
@@ -894,7 +894,7 @@ test("daily workflow client methods build correct method/url/body", async () => 
   }
 });
 
-test("getSystemHealth accepts the raw v0.26.4 health response", async () => {
+test("getSystemHealth accepts the raw health response", async () => {
   const server = http.createServer((req, res) => {
     assert.equal(req.method, "GET");
     assert.equal(req.url, "/api/v1/system/healthz");

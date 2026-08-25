@@ -1,6 +1,6 @@
 ---
 name: skill-for-ragflow
-description: Operate RAGFlow v0.26.4 deployments through a bundled Node CLI for everyday knowledge-base setup, document ingestion, parsing, retrieval, chat assistants, agents, GraphRAG, connectors, models, and diagnostics. Use when a request explicitly involves a RAGFlow server, dataset, document pipeline, or RAGFlow agent.
+description: Operate RAGFlow v0.27.0 deployments through a bundled Node CLI for everyday knowledge-base setup, document ingestion, parsing, retrieval, chat assistants, agents, GraphRAG, connectors, models, and diagnostics. Use when a request explicitly involves a RAGFlow server, dataset, document pipeline, or RAGFlow agent.
 metadata:
   openclaw:
     requires:
@@ -15,7 +15,7 @@ metadata:
 
 # RAGFlow Skill
 
-Operate common RAGFlow v0.26.4 workflows through `node {baseDir}/scripts/ragflow.js <command> [options]`. Prefer `--json` when parsing or chaining results. Prioritize daily operations over exhaustive API coverage.
+Operate common RAGFlow v0.27.0 workflows through `node {baseDir}/scripts/ragflow.js <command> [options]`. Prefer `--json` when parsing or chaining results. Prioritize daily operations over exhaustive API coverage.
 
 ## Requirements
 
@@ -26,7 +26,7 @@ Operate common RAGFlow v0.26.4 workflows through `node {baseDir}/scripts/ragflow
 ## Security Notes
 
 - **Use HTTPS in production.** Production deployments should use `https://` for `RAGFLOW_URL` to protect the API key in transit. Local development (`http://localhost`) is acceptable for testing.
-- **Use a dedicated, rotatable API key for automation.** RAGFlow v0.26.4 API keys are tenant-scoped rather than permission-scoped.
+- **Use a dedicated, rotatable API key for automation.** RAGFlow v0.27.0 API keys are tenant-scoped rather than permission-scoped.
 - **Protect your API key.** Never share `RAGFLOW_API_KEY` in chat messages or commit it to version control. Use environment variables or the skill's `.env` file.
 
 ## Quick Command Reference
@@ -81,11 +81,11 @@ Operate common RAGFlow v0.26.4 workflows through `node {baseDir}/scripts/ragflow
 
 ### Connector workflow
 
-1. `create-connector --dataset <id> --config @connector.json`
-2. `list-connectors --dataset <id>`
+1. `create-connector --config @connector.json`
+2. `list-connectors`
 3. `get-connector --id <id>`
 
-### Model provider workflow (v0.26.4)
+### Model provider workflow (v0.27.0)
 
 1. `list-providers --available` to see configurable providers
 2. `add-provider --name <provider>`

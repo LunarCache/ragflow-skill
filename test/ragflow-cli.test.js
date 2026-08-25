@@ -111,7 +111,7 @@ function createMockServer(options = {}) {
       }
 
       if (pathname === "/api/v1/system/version" && req.method === "GET") {
-        jsonResponse(res, "v0.26.4");
+        jsonResponse(res, "v0.27.0");
         return;
       }
       if (pathname === "/api/v1/system/healthz" && req.method === "GET") {
@@ -143,11 +143,19 @@ function createMockServer(options = {}) {
         return;
       }
 
-      if (pathname === "/v1/llm/my_llms") {
+      if (pathname === "/api/v1/models") {
         if (options.modelsUnauthorized) {
           apiResponse(res, 401, { code: 401, message: "Unauthorized" });
           return;
         }
+        jsonResponse(res, [
+          { model_id: "model-a", name: "Model A", model_type: "chat", provider_name: "OpenAI", enable: true },
+          { model_id: "model-b", name: "Model B", model_type: "embedding", provider_name: "OpenAI", enable: false },
+        ]);
+        return;
+      }
+      if (pathname === "/v1/llm/my_llms") {
+        // Legacy fallback (v0.26.x): factory-grouped catalog.
         jsonResponse(res, {
           OpenAI: {
             llm: [
@@ -459,13 +467,13 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
     { args: ["embed-info", "--agent", "agent1", "--beta", "beta-token", "--json"], expect: { method: "GET", path: "/api/v1/agentbots/agent1/inputs", auth: "beta-token" } },
     { args: ["embed-chat", "--chat", "chat1", "--beta", "beta-token", "--question", "Hello", "--conversation-id", "msg1", "--session", "sess1", "--quote", "--stream", "false", "--json"], expect: { method: "POST", path: "/api/v1/chatbots/chat1/completions", auth: "beta-token", body: { question: "Hello", conversation_id: "msg1", session_id: "sess1", quote: true, stream: false } } },
     { args: ["embed-agent-chat", "--agent", "agent1", "--beta", "beta-token", "--question", "Hello", "--session", "asess1", "--inputs", "{\"city\":{\"value\":\"Shanghai\"}}", "--user-id", "user1", "--published", "--stream", "false", "--json"], expect: { method: "POST", path: "/api/v1/agentbots/agent1/completions", auth: "beta-token", body: { id: "agent1", query: "Hello", session_id: "asess1", inputs: { city: { value: "Shanghai" } }, user_id: "user1", release: "true", stream: false } } },
-    { args: ["list-models", "--include-details", "--group-by", "factory", "--all", "--json"], expect: { method: "GET", path: "/v1/llm/my_llms", query: { include_details: true } } },
+    { args: ["list-models", "--include-details", "--group-by", "factory", "--all", "--json"], expect: { method: "GET", path: "/api/v1/models", query: { include_details: true } } },
     { args: ["download-document", "--dataset", "ds1", "--id", "doc1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/documents/doc1" } },
     { args: ["list-agent-tags", "--json"], expect: { method: "GET", path: "/api/v1/agents/tags" } },
     { args: ["update-agent-tags", "--id", "agent1", "--tags", "ml", "rag", "--json"], expect: { method: "PUT", path: "/api/v1/agents/agent1/tags", body: { tags: "ml,rag" } } },
     { args: ["list-agents", "--tags", "ml", "--json"], expect: { method: "GET", path: "/api/v1/agents", query: { tags: "ml" } } },
-    { args: ["list-connectors", "--dataset", "ds1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/connectors" } },
-    { args: ["create-connector", "--dataset", "ds1", "--config", "{\"type\":\"web\"}", "--json"], expect: { method: "POST", path: "/api/v1/datasets/ds1/connectors", body: { type: "web" } } },
+    { args: ["list-connectors", "--json"], expect: { method: "GET", path: "/api/v1/connectors" } },
+    { args: ["create-connector", "--config", "{\"type\":\"web\"}", "--json"], expect: { method: "POST", path: "/api/v1/connectors", body: { type: "web" } } },
     { args: ["run-raptor", "--dataset", "ds1", "--json"], expect: { method: "POST", path: "/api/v1/datasets/ds1/index", query: { type: "raptor" } } },
     { args: ["trace-raptor", "--dataset", "ds1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/index", query: { type: "raptor" } } },
     { args: ["get-knowledge-graph", "--dataset", "ds1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/graph" } },
@@ -475,18 +483,18 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
     // chat/agent session features
     { args: ["preview-document", "--id", "doc1", "--json"], expect: { method: "GET", path: "/api/v1/documents/doc1/preview" } },
     { args: ["ingest-documents", "--doc-ids", "doc1", "doc2", "--run", "1", "--delete", "--json"], expect: { method: "POST", path: "/api/v1/documents/ingest", body: { doc_ids: ["doc1", "doc2"], run: "1", delete: true } } },
-    // v0.26.4 page_size cap: oversized --page-size is clamped to 100
+    // v0.27.0 page_size cap: oversized --page-size is clamped to 100
     { args: ["list-datasets", "--page-size", "500", "--json"], expect: { method: "GET", path: "/api/v1/datasets", query: { page_size: 100 } } },
     { args: ["chat-session", "--chat", "chat1", "--session", "sess1", "-q", "Hello", "--pass-all-history", "--json"], expect: { method: "POST", path: "/api/v1/chat/completions", body: { chat_id: "chat1", question: "Hello", session_id: "sess1", pass_all_history_messages: true } } },
     { args: ["chat-session", "--chat", "chat1", "--session", "sess1", "-q", "Hello", "--legacy", "--json"], expect: { method: "POST", path: "/api/v1/chat/completions", body: { chat_id: "chat1", question: "Hello", session_id: "sess1", legacy: true } } },
     { args: ["create-agent", "--title", "Agent Canvas", "--dsl", inlineDsl, "--canvas-type", "flow", "--json"], expect: { method: "POST", path: "/api/v1/agents", body: { title: "Agent Canvas", dsl: canonicalDsl, canvas_type: "flow" } } },
     { args: ["update-agent", "--id", "agent1", "--title", "Agent2", "--dsl", `@${dsl}`, "--canvas-type", "flow", "--json"], expect: { method: "PUT", path: "/api/v1/agents/agent1", body: { title: "Agent2", dsl: canonicalDsl, canvas_type: "flow" } } },
     { args: ["agent-chat", "--agent", "agent1", "--session", "asess1", "-q", "Hello", "--chat-template-kwargs", "{\"temperature\": 0.5}", "--json"], expect: { method: "POST", path: "/api/v1/agents/chat/completions", body: { agent_id: "agent1", question: "Hello", session_id: "asess1", chat_template_kwargs: { temperature: 0.5 } } } },
-    // v0.26.4 tenant models
+    // v0.27.0 tenant models
     { args: ["list-added-models", "--type", "chat", "--json"], expect: { method: "GET", path: "/api/v1/models", query: { type: "chat" } } },
     { args: ["list-default-models", "--json"], expect: { method: "GET", path: "/api/v1/models/default" } },
     { args: ["set-default-model", "--model-type", "chat", "--model-provider", "OpenAI", "--model-instance", "default", "--model-name", "gpt-4o", "--json"], expect: { method: "PATCH", path: "/api/v1/models/default", body: { model_type: "chat", model_provider: "OpenAI", model_instance: "default", model_name: "gpt-4o" } } },
-    // v0.26.4 model providers
+    // v0.27.0 model providers
     { args: ["list-providers", "--available", "--json"], expect: { method: "GET", path: "/api/v1/providers", query: { available: "true" } } },
     { args: ["get-provider", "--name", "OpenAI", "--json"], expect: { method: "GET", path: "/api/v1/providers/OpenAI" } },
     { args: ["add-provider", "--name", "OpenAI", "--json"], expect: { method: "PUT", path: "/api/v1/providers", body: { provider_name: "OpenAI" } } },
@@ -826,12 +834,12 @@ test("list-models fails directly on unauthorized model endpoint", async () => {
     const payload = JSON.parse(result.stdout);
     assert.match(payload.error.message, /Unauthorized/);
     assert.match(payload.error.message, /RAGFLOW_API_KEY/);
-    assert.equal(payload.error.raw_message, "Unauthorized. Verify RAGFLOW_API_KEY is valid for /v1/llm/my_llms.");
+    assert.equal(payload.error.raw_message, "Unauthorized. Verify RAGFLOW_API_KEY is valid for /api/v1/models.");
     assert.equal(payload.error.code, 401);
     assert.equal(payload.error.status, 401);
     assert.equal(payload.error.command, "list-models");
     assert.equal(server.requests.length, 1);
-    assertRequest(server.requests[0], { method: "GET", path: "/v1/llm/my_llms" });
+    assertRequest(server.requests[0], { method: "GET", path: "/api/v1/models" });
   } finally {
     await server.close();
   }

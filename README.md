@@ -1,16 +1,23 @@
 # RAGFlow Skill
 
-A Codex/OpenCode skill for operating [RAGFlow](https://github.com/infiniflow/ragflow) v0.26.4 through a bundled Node.js CLI and API client.
+A Codex/OpenCode skill for operating [RAGFlow](https://github.com/infiniflow/ragflow) v0.27.0 through a bundled Node.js CLI and API client.
 
 ## Features
 
-- **Daily RAGFlow v0.26.4 workflow coverage** - datasets, documents, parsing, chunks, metadata, retrieval, RAPTOR/GraphRAG, chat sessions, agents, embeds, model discovery, providers, connectors, and health checks
+- **Daily RAGFlow v0.27.0 workflow coverage** - datasets, documents, parsing, chunks, metadata, retrieval, RAPTOR/GraphRAG, chat sessions, agents, embeds, model discovery, providers, connectors, and health checks
 - **Zero dependencies** - pure Node.js, no npm install required
 - **JSON-first output** - `--json` flag for machine-readable output suitable for pipelines
 - **Robust error handling** - automatic retries for transient failures, structured error envelopes
 - **Comprehensive documentation** - command reference, API examples, troubleshooting guide
 
 ## Update Notes
+
+### v1.8.0 (RAGFlow v0.27.0)
+
+- Updated all references and route-shape notes from v0.26.4 to v0.27.0.
+- `list-models` now calls `GET /api/v1/models` (the legacy `/v1/llm/my_llms` route was removed in v0.27.0), with automatic fallback to the legacy endpoint for older servers, and normalizes the v0.27.0 flat model catalog alongside the legacy factory-grouped shape.
+- `list-connectors`/`create-connector` corrected to tenant-scoped `/api/v1/connectors` routes (the dataset-scoped `/datasets/{id}/connectors` route never existed on the server); `--dataset` is no longer required.
+- Documented v0.27.0's new connector types (GitLab, Bitbucket, Notion, Google Cloud Storage) and provider instance `GET`/`PUT` per-instance routes.
 
 ### v1.7.0 (RAGFlow v0.26.4)
 
@@ -237,7 +244,7 @@ const agentAnswer = await client.agentChat(agentId, agentSession.id, "Summarize 
 ## Requirements
 
 - **Node.js** 18+ (uses built-in `node:test` and `fetch`)
-- **RAGFlow** v0.26.4 server
+- **RAGFlow** v0.27.0 server
 
 ## License
 
