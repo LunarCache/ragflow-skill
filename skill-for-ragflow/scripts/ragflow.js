@@ -7,6 +7,7 @@ const args = process.argv.slice(2);
 const command = args[0];
 const outputMode = { jsonOnly: false };
 let activeOptionState = null;
+let destructiveConfirmed = false;
 
 // ── Output helpers ──
 
@@ -196,7 +197,7 @@ function validateOptions(opts) {
 }
 
 function createClient(options = {}) {
-  const client = createApiClient(options);
+  const client = createApiClient({ ...options, allowDestructive: destructiveConfirmed });
   for (const method of ["request", "_streamRequest"]) {
     const send = client[method].bind(client);
     client[method] = (...requestArgs) => {
@@ -244,7 +245,7 @@ function readStdinText() {
 }
 
 function providerApiKey(opts, required = false) {
-  let value = opts.apiKey || process.env.RAGFLOW_PROVIDER_API_KEY;
+  let value = process.env.RAGFLOW_PROVIDER_API_KEY;
   if (opts.apiKeyFile) {
     value = fs.readFileSync(path.resolve(process.cwd(), opts.apiKeyFile), "utf-8").trim();
   }
@@ -283,7 +284,7 @@ function questionFromMessages(messages) {
 
 function applyChatOptions(data, opts) {
   if (opts.datasets) data.dataset_ids = listValue(opts.datasets);
-  if (opts.llm || opts.llmId) data.llm_id = opts.llmId || opts.llm;
+  if (opts.llmId) data.llm_id = opts.llmId;
   if (opts.promptConfig) data.prompt_config = jsonOption(opts.promptConfig, "--prompt-config");
   if (opts.prompt) data.prompt_config = { ...(data.prompt_config || {}), system: opts.prompt };
   if (opts.similarityThreshold) data.similarity_threshold = Number(opts.similarityThreshold);
@@ -299,8 +300,8 @@ function boolOption(value, defaultValue = false) {
 }
 
 async function embedBeta(client, opts) {
-  if (opts.beta || opts.auth) {
-    return { beta: opts.beta || opts.auth, token: opts.token || "" };
+  if (opts.beta) {
+    return { beta: opts.beta, token: opts.token || "" };
   }
   const token = await client.ensureEmbedToken();
   if (!token || !token.beta) {
@@ -310,17 +311,30 @@ async function embedBeta(client, opts) {
 }
 
 function normalizeOrigin(value) {
-  let origin = (value || process.env.RAGFLOW_URL || "").trim().replace(/\/+$/, "");
+  let origin = (value || process.env.RAGFLOW_URL || "").trim();
   if (!origin) throw new Error("Missing origin. Set RAGFLOW_URL or pass --origin");
-  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(origin)) {
-    origin = `http://${origin}`;
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(origin)) origin = `http://${origin}`;
+  const parsed = new URL(origin);
+  if (!["https:", "http:"].includes(parsed.protocol) || parsed.username || parsed.password ||
+      parsed.pathname !== "/" || parsed.search || parsed.hash) {
+    throw new Error("Embed origin must be an HTTP(S) origin without credentials, path, query, or fragment");
   }
-  return origin;
+  return parsed.origin;
+}
+
+function escapeHtmlAttribute(value) {
+  return String(value).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#39;")
+    .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function scriptString(value) {
+  return JSON.stringify(value).replace(/</g, "\\u003c").replace(/>/g, "\\u003e")
+    .replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
 }
 
 function appendEmbedQueryParams(src, opts, isAgent) {
-  if (opts.published || opts.release) src.searchParams.append("release", "true");
-  if (opts.hideAvatar || opts.visibleAvatar) src.searchParams.append("visible_avatar", "1");
+  if (opts.published) src.searchParams.append("release", "true");
+  if (opts.hideAvatar) src.searchParams.append("visible_avatar", "1");
   if (opts.locale) src.searchParams.append("locale", opts.locale);
   if (opts.userId) src.searchParams.append("userId", opts.userId);
   if (opts.data) {
@@ -341,7 +355,7 @@ function buildEmbedCode(opts, tokenInfo) {
     throw new Error("Provide exactly one of --chat or --agent");
   }
   const isAgent = Boolean(agentId);
-  const type = opts.type || opts.embedType || "fullscreen";
+  const type = opts.type || "fullscreen";
   if (!["fullscreen", "widget"].includes(type)) {
     throw new Error("--type must be fullscreen or widget");
   }
@@ -361,19 +375,28 @@ function buildEmbedCode(opts, tokenInfo) {
 
   const srcText = src.toString();
   const html = type === "widget"
-    ? `<iframe
-  src="${srcText}"
+    ? `<iframe id="ragflow-embed-launcher"
+  src="${escapeHtmlAttribute(srcText)}"
   style="position:fixed;bottom:0;right:0;width:100px;height:100px;border:none;background:transparent;z-index:9999"
   frameborder="0"
   allow="microphone;camera"
 ></iframe>
 <script>
 window.addEventListener('message',e=>{
-  if(e.origin!=='${origin}')return;
+  const allowedOrigin=${scriptString(origin)};
+  const launcher=document.getElementById('ragflow-embed-launcher');
+  const chat=document.getElementById('chat-win');
+  if(e.origin!==allowedOrigin || !e.source ||
+     (e.source!==launcher?.contentWindow && e.source!==chat?.contentWindow) ||
+     !e.data || typeof e.data!=='object')return;
   if(e.data.type==='CREATE_CHAT_WINDOW'){
-    if(document.getElementById('chat-win'))return;
+    if(chat || typeof e.data.src!=='string')return;
+    let target;
+    try{target=new URL(e.data.src,allowedOrigin);}catch{return;}
+    if(target.origin!==allowedOrigin || target.username || target.password ||
+       !['/chats/widget','/chats/share','/agent/share'].includes(target.pathname))return;
     const i=document.createElement('iframe');
-    i.id='chat-win';i.src=e.data.src;
+    i.id='chat-win';i.src=target.href;
     i.style.cssText='position:fixed;bottom:104px;right:24px;width:380px;height:500px;border:none;background:transparent;z-index:9998;display:none';
     i.frameBorder='0';i.allow='microphone;camera';
     document.body.appendChild(i);
@@ -384,7 +407,7 @@ window.addEventListener('message',e=>{
 });
 </script>`
     : `<iframe
-  src="${srcText}"
+  src="${escapeHtmlAttribute(srcText)}"
   style="width: 100%; height: 100%; min-height: 600px"
   frameborder="0"
 ></iframe>`;
@@ -402,7 +425,6 @@ window.addEventListener('message',e=>{
 
 function applyEmbeddedChatPayloadOptions(data, opts) {
   if (opts.session) data.session_id = opts.session;
-  if (opts.conversationId) data.conversation_id = opts.conversationId;
   if (opts.quote !== undefined) data.quote = boolOption(opts.quote);
   if (opts.stream !== undefined) data.stream = boolOption(opts.stream);
   if (opts.reasoning !== undefined) data.reasoning = boolOption(opts.reasoning);
@@ -413,29 +435,25 @@ function applyEmbeddedAgentPayloadOptions(data, opts) {
   if (opts.session) data.session_id = opts.session;
   if (opts.inputs) data.inputs = jsonOption(opts.inputs, "--inputs");
   if (opts.userId) data.user_id = opts.userId;
-  if (opts.published || opts.release) data.release = "true";
+  if (opts.published) data.release = "true";
   if (opts.stream !== undefined) data.stream = boolOption(opts.stream);
 }
 
 function embedCodeOptions(opts) {
   return {
     agent: opts.agent,
-    auth: opts.auth,
     beta: opts.beta,
     chat: opts.chat,
     data: opts.data,
-    embedType: opts.embedType,
     hideAvatar: opts.hideAvatar,
     locale: opts.locale,
     origin: opts.origin,
     published: opts.published,
-    release: opts.release,
     streaming: opts.streaming,
     theme: opts.theme,
     token: opts.token,
     type: opts.type,
     userId: opts.userId,
-    visibleAvatar: opts.visibleAvatar,
   };
 }
 
@@ -614,23 +632,34 @@ async function updateDocument(opts) {
   json(result);
 }
 
+function outputDocumentFile(result, output) {
+  if (!output) {
+    json(result);
+    return;
+  }
+  const destination = path.resolve(output);
+  fs.writeFileSync(destination, Buffer.from(result.content, "base64"), { flag: "wx" });
+  const { content, ...metadata } = result;
+  json({ ...metadata, path: destination });
+}
+
 async function downloadDocument(opts) {
   const client = createClient();
   const dataset = requireOpt(opts, "dataset");
   const id = requireOpt(opts, "id");
+  const output = opts.output;
   info(`Downloading document ${id}...`);
   const result = await client.downloadDocument(dataset, id);
-  ok(`Document downloaded`);
-  json(result);
+  outputDocumentFile(result, output);
 }
 
 async function previewDocument(opts) {
   const client = createClient();
   const id = requireOpt(opts, "id");
+  const output = opts.output;
   info(`Previewing document ${id}...`);
   const result = await client.previewDocument(id);
-  ok("Document preview fetched");
-  json(result);
+  outputDocumentFile(result, output);
 }
 
 // ── Parsing ──
@@ -807,7 +836,29 @@ async function retrieve(opts) {
   }
   if (opts.similarity) params.similarity_threshold = Number(opts.similarity);
   if (opts.topN) params.page_size = clampPageSize(opts.topN);
-  if (opts.topK) params.top_k = Number(opts.topK);
+  for (const [option, field] of [
+    ["page", "page"],
+    ["knnTopK", "knn_top_k"],
+    ["knnNumCandidates", "knn_num_candidates"],
+    ["rerankCandidatesCount", "rerank_candidates_count"],
+  ]) {
+    if (opts[option] === undefined) continue;
+    const value = Number(opts[option]);
+    if (opts[option] === true || !Number.isSafeInteger(value) || value <= 0) {
+      throw new Error(`${optionName(option)} must be a positive integer`);
+    }
+    params[field] = value;
+  }
+  if (params.knn_num_candidates !== undefined && params.knn_num_candidates < (params.knn_top_k ?? 1024)) {
+    throw new Error("--knn-num-candidates must be at least --knn-top-k (default 1024)");
+  }
+  if (params.rerank_candidates_count !== undefined && params.rerank_candidates_count < (params.page ?? 1) * (params.page_size ?? 30)) {
+    throw new Error("--rerank-candidates-count must be at least --page multiplied by --top-n (default 30)");
+  }
+  if (opts.docIds) params.document_ids = listValue(opts.docIds);
+  if (opts.metadataCondition) params.metadata_condition = jsonOption(opts.metadataCondition, "--metadata-condition");
+  if (opts.highlight !== undefined) params.highlight = boolOption(opts.highlight);
+  if (opts.includeKnowledgeCompilation !== undefined) params.include_knowledge_compilation = boolOption(opts.includeKnowledgeCompilation);
   if (opts.vectorWeight) params.vector_similarity_weight = Number(opts.vectorWeight);
   if (opts.rerank) params.rerank_id = opts.rerank;
   if (opts.keyword) params.keyword = true;
@@ -816,7 +867,7 @@ async function retrieve(opts) {
 
   info(`Searching: "${question}"`);
   const result = await client.retrieve(params);
-  const count = Array.isArray(result) ? result.length : 0;
+  const count = Array.isArray(result) ? result.length : (result?.chunks?.length ?? 0);
   ok(`Found ${count} result(s)`);
   json(result);
 }
@@ -1038,7 +1089,6 @@ async function chat(opts) {
   const params = {};
   if (opts.stream) params.stream = true;
   if (opts.topN) params.top_n = Number(opts.topN);
-  if (opts.legacy !== undefined) params.legacy = boolOption(opts.legacy);
 
   info(`Asking: "${question}"`);
   const result = await client.chat(chatId, session, question, params);
@@ -1059,14 +1109,13 @@ async function chatSession(opts) {
   if (!data.question) {
     throw new Error("Missing required option: --question or --messages with a user message");
   }
-  if (opts.llmId || opts.llm) data.llm_id = opts.llmId || opts.llm;
+  if (opts.llmId) data.llm_id = opts.llmId;
   if (opts.temperature !== undefined) data.temperature = Number(opts.temperature);
   if (opts.topP !== undefined) data.top_p = Number(opts.topP);
   if (opts.frequencyPenalty !== undefined) data.frequency_penalty = Number(opts.frequencyPenalty);
   if (opts.presencePenalty !== undefined) data.presence_penalty = Number(opts.presencePenalty);
   if (opts.maxTokens !== undefined) data.max_tokens = Number(opts.maxTokens);
   if (opts.stream !== undefined) data.stream = opts.stream !== "false" && opts.stream !== false;
-  if (opts.legacy !== undefined) data.legacy = boolOption(opts.legacy);
   if (opts.passAllHistory) data.pass_all_history_messages = true;
   if (opts.messages) data.messages = jsonOption(opts.messages, "--messages");
   info(`Asking session: ${session}...`);
@@ -1266,6 +1315,8 @@ async function deleteSystemToken(opts) {
 async function embedCode(opts) {
   const client = createClient();
   const embedOpts = embedCodeOptions(opts);
+  validateUnusedOptions();
+  buildEmbedCode(embedOpts, { beta: "" }); // Validate before token discovery or creation.
   const tokenInfo = await embedBeta(client, embedOpts);
   const result = buildEmbedCode(embedOpts, tokenInfo);
   ok(`Embed code generated for ${result.from} ${result.id}`);
@@ -1325,104 +1376,54 @@ async function embedAgentChat(opts) {
 
 async function listModels(opts) {
   const client = createClient();
-  const includeDetails = Boolean(opts.includeDetails);
+  const includeDetails = boolOption(opts.includeDetails);
   const groupBy = opts.groupBy || "type";
-  const includeUnavailable = opts.all;
+  const includeUnavailable = boolOption(opts.all);
   const params = {};
-  if (includeDetails) params.include_details = true;
-  info("Fetching available LLM models...");
+  if (opts.type) params.type = opts.type;
+  if (!["type", "factory"].includes(groupBy)) throw new Error("--group-by must be type or factory");
+  info("Fetching configured LLM models...");
   let result;
   try {
     result = await client.listModels(params);
   } catch (err) {
-    // Fall back to the legacy factory-grouped discovery endpoint for
-    // RAGFlow v0.26.x deployments. The /api/v1/models route was introduced
-    // in v0.26.0; callers on older servers should still work.
-    if (err.status === 404 || err.code === 404 || /not found/i.test(err.message || "")) {
-      info("v0.27.0 /api/v1/models not available; trying legacy /v1/llm/my_llms...");
-      result = await client.listModelsLegacy(params);
-    } else {
-      if (err.status === 401 || err.code === 401 || /unauthor/i.test(err.message)) {
-        err.message = `${err.message}. Verify RAGFLOW_API_KEY is valid for /api/v1/models.`;
-      }
-      throw err;
+    if (err.status === 401 || err.code === 401 || /unauthor/i.test(err.message)) {
+      err.message = `${err.message}. Verify RAGFLOW_API_KEY is valid for /api/v1/models.`;
     }
+    throw err;
   }
-
-  // Normalize and group models. The v0.27.0 /api/v1/models response is a
-  // flat array of { name, model_type, provider_name, ..., enable } objects;
-  // the legacy /v1/llm/my_llms response is { <factory>: { tags, llm: [] } }.
-  const rawModels = Array.isArray(result)
-    ? result
-    : Array.isArray(result?.models)
-      ? result.models
-      : null;
-
+  if (!Array.isArray(result)) throw new Error("Unexpected /api/v1/models response: expected a model array");
   const groups = [];
-  const modelKey = (factory, name) => `${factory}@${name}`;
   const seen = new Set();
-
-  if (rawModels) {
-    for (const m of rawModels) {
-      const factory = m.provider_name || "unknown";
-      const name = m.name || m.model_name || "";
-      if (!name) continue;
-      const isAvailable = m.enable !== false && m.status !== "0" && m.status !== 0;
-      if (!includeUnavailable && !isAvailable) continue;
-      const key = modelKey(factory, name);
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const groupName = groupBy === "factory" ? factory : (m.model_type || "unknown");
-      let group = groups.find((g) => g.name === groupName);
-      if (!group) {
-        group = { name: groupName, models: [] };
-        groups.push(group);
-      }
-      const model = {
-        id: m.model_id || "",
-        name,
-        type: Array.isArray(m.model_type) ? m.model_type.join(",") : (m.model_type || "unknown"),
-        factory,
-        instance: m.instance_name || "",
-        status: isAvailable ? "available" : "unavailable",
-      };
-      group.models.push(model);
+  for (const m of result) {
+    const factory = m.provider_name || "unknown";
+    const name = m.name || "";
+    if (!name) continue;
+    const instance = m.instance_name || "default";
+    const isAvailable = m.enable !== false && m.status !== "0" && m.status !== 0;
+    if (!includeUnavailable && !isAvailable) continue;
+    const types = Array.isArray(m.model_type) ? m.model_type : [m.model_type || "unknown"];
+    const type = types.join(",");
+    const key = JSON.stringify([m.tenant_id, factory, instance, name, type]);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const groupName = groupBy === "factory" ? factory : type;
+    let group = groups.find((g) => g.name === groupName);
+    if (!group) {
+      group = { name: groupName, models: [] };
+      groups.push(group);
     }
-  } else {
-    // Legacy factory-grouped shape.
-    const factories = result || {};
-    for (const [factoryName, factoryPayload] of Object.entries(factories)) {
-      if (factoryName.startsWith("__")) continue;
-      if (!factoryPayload || !factoryPayload.llm) continue;
-      const llms = factoryPayload.llm || [];
-      for (const llm of llms) {
-        const status = llm.status;
-        const isAvailable = status === 1 || status === "1" || status === true;
-        if (!includeUnavailable && !isAvailable) continue;
-        const key = modelKey(factoryName, llm.name || "");
-        if (seen.has(key)) continue;
-        seen.add(key);
-        const groupName = groupBy === "factory" ? factoryName : (llm.type || "unknown");
-        let group = groups.find((g) => g.name === groupName);
-        if (!group) {
-          group = { name: groupName, models: [] };
-          groups.push(group);
-        }
-        const model = {
-          id: llm.id,
-          name: llm.name,
-          type: llm.type,
-          factory: factoryName,
-          status: isAvailable ? "available" : "unavailable",
-        };
-        if (includeDetails) {
-          model.used_token = llm.used_token;
-          if (llm.api_base) model.api_base = llm.api_base;
-          if (llm.max_tokens) model.max_tokens = llm.max_tokens;
-        }
-        group.models.push(model);
+    const model = {
+      id: m.model_id ?? "", name, type, factory, instance,
+      identifier: `${name}@${instance}@${factory}`,
+      status: m.enable === undefined && m.status === undefined ? "configured" : (isAvailable ? "available" : "unavailable"),
+    };
+    if (includeDetails) {
+      for (const field of ["tenant_id", "tenant_name", "provider_id", "instance_id", "rank"]) {
+        if (m[field] !== undefined) model[field] = m[field];
       }
     }
+    group.models.push(model);
   }
 
   groups.sort((a, b) => a.name.localeCompare(b.name));
@@ -1851,10 +1852,9 @@ ${C.bold}Common Options:${C.reset}
     --chat              Chat assistant ID
     --agent             Agent ID
     --session           Session ID
-    --legacy            Use legacy cumulative streaming format for chat completions
     --token-file        Read token from a file
     --token-stdin       Read token from stdin
-    --beta, --auth      Embed auth beta token
+    --beta              Embed auth beta token
     --origin            Public RAGFlow origin for embed code
     --type              Embed type: fullscreen or widget
     --theme             Embed theme: light or dark
@@ -1865,7 +1865,6 @@ ${C.bold}Common Options:${C.reset}
     --hide-avatar       Hide avatar in embedded page
     --data              Embed URL data JSON
     --inputs            Embedded agent begin inputs JSON
-    --conversation-id   Embedded chat conversation ID
     --llm-id            LLM model ID
     --question, -q      Question (for retrieve/chat)
     --datasets, -d      Dataset IDs for retrieval
@@ -1874,7 +1873,8 @@ ${C.bold}Common Options:${C.reset}
     --meta-fields       Document metadata JSON
     --similarity, -s    Similarity threshold (0-1)
     --top-n, -n         Number of results
-    --top-k, -k         Number of candidates
+    --knn-top-k        Retrieval vector-neighbor count
+    --top-k, -k         Chat assistant candidate count (not retrieval)
     --top-p             Top-p
     --vector-weight, -w Vector similarity weight (0-1)
     --temperature       Sampling temperature
@@ -1906,7 +1906,6 @@ ${C.bold}Common Options:${C.reset}
     --instance          Provider instance name
     --instances         Provider instance names (multiple values)
     --api-key-file      Read provider API key from a file (recommended)
-    --api-key           Provider API key in argv (legacy; prefer file or RAGFLOW_PROVIDER_API_KEY)
     --base-url          Provider base URL
     --region            Provider region
     --model-info        Provider model_info JSON (provider instance commands)
@@ -1917,6 +1916,7 @@ ${C.bold}Common Options:${C.reset}
     --prompt-config     Chat prompt configuration (JSON or @file)
     --pkg-name          Log package name
     --level             Log level
+    --confirm-destructive  Explicitly authorize deletion or destructive bulk changes
     --json              Print machine-readable JSON only
 
 `;
@@ -1951,6 +1951,11 @@ async function main() {
 
   try {
     validateOptions(opts);
+    const confirmation = opts.confirmDestructive;
+    if (confirmation !== undefined && ![true, "true", false, "false"].includes(confirmation)) {
+      throw new Error("--confirm-destructive accepts only true or false");
+    }
+    destructiveConfirmed = confirmation === true || confirmation === "true";
     await cmd.fn(opts);
     validateUnusedOptions();
   } catch (err) {

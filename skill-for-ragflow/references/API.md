@@ -35,6 +35,8 @@ const client = createClient();
 
 `createClient()` reads `RAGFLOW_URL` and `RAGFLOW_API_KEY` from the environment and then fills missing values from the bundled `.env` file. Existing environment variables take precedence. See [Configuration](#configuration) below.
 
+Destructive requests fail with `CONFIRMATION_REQUIRED` before network access by default. After verifying authorization and target scope, create a dedicated client with `const destructiveClient = createClient({ allowDestructive: true });` for deletion, metadata removal or unscoped metadata updates, and ingestion with `delete: true`. Use that client for the deletion examples below; ordinary clients remain suitable for reads and scoped updates.
+
 ## Dataset
 
 ```javascript
@@ -55,7 +57,7 @@ const dataset = await client.createDataset({
 await client.updateDataset("<dataset_id>", { name: "New Name" });
 
 // Delete datasets by IDs
-await client.deleteDatasets(["<id1>", "<id2>"]);
+await destructiveClient.deleteDatasets(["<id1>", "<id2>"]);
 ```
 
 ## Document
@@ -85,10 +87,10 @@ await client.updateDocument("<dataset_id>", "<doc_id>", {
 });
 
 // Delete documents by IDs
-await client.deleteDocuments("<dataset_id>", ["<doc_id1>", "<doc_id2>"]);
+await destructiveClient.deleteDocuments("<dataset_id>", ["<doc_id1>", "<doc_id2>"]);
 ```
 
-RAGFlow v0.27.0 defines document updates as `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. `updateDocument()` sends that request directly.
+RAGFlow v0.27.2 defines document updates as `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. `updateDocument()` sends that request directly.
 
 You can also filter documents by metadata:
 
@@ -117,9 +119,11 @@ const doc = await client.downloadDocument(datasetId, documentId);
 // Download by document ID
 const doc = await client.downloadDocumentById(documentId);
 
-// Preview a document inline (v0.27.0)
+// Preview a document inline (v0.27.2)
 const preview = await client.previewDocument(documentId);
 ```
+
+Downloads/previews are normalized from binary HTTP responses into `{ content, encoding: "base64", name, content_type, size }`. Decode with `Buffer.from(doc.content, "base64")`; `content` is not plain text or a remote URL. JSON API errors and HTTP failures still reject the request.
 
 ## Parsing
 
@@ -166,11 +170,11 @@ await client.updateChunk("<dataset_id>", "<doc_id>", "<chunk_id>", {
 });
 
 // Delete chunks by IDs
-await client.deleteChunks("<dataset_id>", "<doc_id>", ["<chunk_id1>"]);
+await destructiveClient.deleteChunks("<dataset_id>", "<doc_id>", ["<chunk_id1>"]);
 
 // Inspect or delete the document structure graph
 const graph = await client.getDocumentStructureGraph("<dataset_id>", "<doc_id>");
-await client.deleteDocumentStructureGraph("<dataset_id>", "<doc_id>");
+await destructiveClient.deleteDocumentStructureGraph("<dataset_id>", "<doc_id>");
 ```
 
 `updateChunk()` uses `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}/chunks/{chunk_id}`. `ingestDocuments()` is for ingestion-pipeline datasets; use `startParsing()`/`stopParsing()` for the built-in chunking pipeline.
@@ -178,7 +182,7 @@ await client.deleteDocumentStructureGraph("<dataset_id>", "<doc_id>");
 `deleteChunks()` retries the transient `rm_chunk deleted chunks 0, expect N` response only after `getChunk()` confirms the target chunk still exists. This distinguishes document-store refresh delay from a genuinely missing chunk. Override with:
 
 ```javascript
-await client.deleteChunks("<dataset_id>", "<doc_id>", ["<chunk_id1>"], {
+await destructiveClient.deleteChunks("<dataset_id>", "<doc_id>", ["<chunk_id1>"], {
   maxRetries: 0,
   retryDelay: 1000,
 });
@@ -232,13 +236,19 @@ const results = await client.retrieve({
   dataset_ids: ["<dataset_id>"],
   similarity_threshold: 0.3,
   page_size: 5,
-  top_k: 1024,
+  knn_top_k: 1024,
+  knn_num_candidates: 2048,
+  rerank_candidates_count: 64,
+  highlight: true,
+  include_knowledge_compilation: false,
   vector_similarity_weight: 0.7,
   keyword: true,
   use_kg: false,
   rerank_id: "<rerank_model_id>",
 });
 ```
+
+`retrieve()` forwards the payload unchanged. Prefer `knn_top_k` over the deprecated `top_k`; `knn_num_candidates` must be at least `knn_top_k`. Set `rerank_candidates_count >= page * page_size` (defaults: 64, 1, 30). `document_ids` and `metadata_condition` filters intersect. `include_knowledge_compilation: false` excludes compiled chunks. The response is `{ chunks, total, doc_aggs }`.
 
 ## Metadata
 
@@ -260,15 +270,15 @@ const connectors = await client.listConnectors();
 
 // Create connector
 const connector = await client.createConnector({
-  name: "REST API",
-  type: "rest",
-  config: { url: "https://api.example.com" }
+  name: "Documentation sitemap",
+  source: "sitemap",
+  config: { sitemap_url: "https://example.com/sitemap.xml" }
 });
 
 // Get, update, delete connector
 const conn = await client.getConnector(connectorId);
-await client.updateConnector(connectorId, { name: "Updated" });
-await client.deleteConnector(connectorId);
+await client.updateConnector(connectorId, { refresh_freq: 10 });
+await destructiveClient.deleteConnector(connectorId);
 ```
 
 ## RAPTOR
@@ -287,7 +297,7 @@ const progress = await client.traceRaptor(datasetId);
 const graph = await client.getKnowledgeGraph(datasetId);
 await client.runGraphRag(datasetId);
 const progress = await client.traceGraphRag(datasetId);
-await client.deleteKnowledgeGraph(datasetId);
+await destructiveClient.deleteKnowledgeGraph(datasetId);
 ```
 
 ## Chat Assistant
@@ -316,7 +326,7 @@ await client.updateChatAssistant("<chat_id>", { name: "New Name" });
 await client.patchChatAssistant("<chat_id>", { prompt_config: { system: "Use the dataset" } });
 
 // Delete chat assistants by IDs
-await client.deleteChatAssistants(["<chat_id1>", "<chat_id2>"]);
+await destructiveClient.deleteChatAssistants(["<chat_id1>", "<chat_id2>"]);
 ```
 
 ## Session
@@ -333,7 +343,7 @@ const current = await client.getSession("<chat_id>", "<session_id>");
 await client.updateSession("<chat_id>", "<session_id>", { name: "Reviewed Q&A" });
 
 // Delete sessions by IDs
-await client.deleteSessions("<chat_id>", ["<session_id1>"]);
+await destructiveClient.deleteSessions("<chat_id>", ["<session_id1>"]);
 ```
 
 ## Chat Conversation
@@ -348,12 +358,6 @@ const sessionAnswer = await client.chatSession("<chat_id>", "<session_id>", {
   question: "Summarize the policy.",
 });
 
-// v0.27.0 legacy streaming compatibility
-const legacyAnswer = await client.chatSession("<chat_id>", "<session_id>", {
-  question: "Summarize the policy.",
-  legacy: true,
-});
-
 // Convenience form: the last user message becomes `question`
 const sessionAnswerFromMessages = await client.chatSession("<chat_id>", "<session_id>", {
   messages: [
@@ -363,7 +367,7 @@ const sessionAnswerFromMessages = await client.chatSession("<chat_id>", "<sessio
 });
 ```
 
-`chatSession()` uses `POST /api/v1/chat/completions` with `chat_id` and `session_id` in the JSON body. In v0.27.0, `conversation_id` is accepted as an alias for `session_id`. By default, only the latest user message is appended to the stored history. Set `pass_all_history_messages: true` to replace the entire history with the submitted messages array. Set `legacy: true` only for callers that still expect the old cumulative streaming format.
+`chatSession()` uses `POST /api/v1/chat/completions` with `chat_id` and `session_id` in the JSON body. Use `session_id` for session identity. By default, only the latest user message is appended to the stored history. Set `pass_all_history_messages: true` to replace the entire history with the submitted messages array. The client only supports the current streaming format.
 
 ## Agent
 
@@ -381,7 +385,7 @@ const agent = await client.createAgent({ title: "My Agent", dsl: { ... } });
 await client.updateAgent("<agent_id>", { title: "Updated Agent" });
 
 // Delete agents by IDs
-await client.deleteAgents(["<agent_id1>"]);
+await destructiveClient.deleteAgents(["<agent_id1>"]);
 ```
 
 `createAgent()` and `updateAgent()` forward the DSL directly to RAGFlow, where the server normalizes it through the canvas DSL normalization layer. In practice, hand-authored DSL should include `components`, `history`, `path`, `retrieval`, `variables`, `globals`, and `graph`, and every component-backed graph node should include `data.name`. See [AGENT_GUIDE.md](AGENT_GUIDE.md) for the current schema and minimal examples.
@@ -406,7 +410,7 @@ const sessions = await client.listAgentSessions("<agent_id>", { page: 1 });
 const session = await client.createAgentSession("<agent_id>", { name: "Session 1" });
 
 // Delete agent sessions by IDs
-await client.deleteAgentSessions("<agent_id>", ["<session_id1>"]);
+await destructiveClient.deleteAgentSessions("<agent_id>", ["<session_id1>"]);
 ```
 
 ## Agent Chat
@@ -435,7 +439,7 @@ const embedToken = await client.ensureEmbedToken();
 // Token management
 const tokens = await client.listSystemTokens();
 const newToken = await client.createSystemToken();
-await client.deleteSystemToken(newToken.token);
+await destructiveClient.deleteSystemToken(newToken.token);
 
 // Chat assistant shared-site metadata and completion
 const chatInfo = await client.getEmbeddedChatInfo("<chat_id>", embedToken.beta);
@@ -466,24 +470,24 @@ For chatbot completions, RAGFlow creates the embedded session on the first no-se
 ## LLM Models
 
 ```javascript
-// List available models (v0.27.0 flat tenant model catalog)
-const models = await client.listModels({ include_details: true });
+// List available models (v0.27.2 flat tenant model catalog)
+const models = await client.listModels({ type: "chat" });
 // GET /api/v1/models -> [{ name, model_type, provider_name, model_id, ... }]
-// Returns: { groups: [...], total: <n> }
+// Client returns the server catalog array; CLI list-models groups it as { groups, total }.
 ```
 
-RAGFlow v0.27.0 exposes model discovery at `/api/v1/models` (replacing the legacy `/v1/llm/my_llms`, which was removed in v0.27.0). Authentication uses `RAGFLOW_API_KEY`. The CLI falls back to the legacy endpoint automatically for older servers.
+RAGFlow v0.27.2 exposes model discovery at `/api/v1/models` (replacing the legacy `/v1/llm/my_llms`, which was removed in v0.27.0). Authentication uses `RAGFLOW_API_KEY`. There is no legacy endpoint fallback; `listModelsLegacy()` has been removed.
 
-Use model names plus provider suffixes when creating resources, for example `qwen-turbo@Tongyi-Qianwen` for `llm_id` and `text-embedding-v4@Tongyi-Qianwen` for `embedding_model`. Some deployments return numeric `id` fields; those are server row IDs and should not be sent as `llm_id`.
+Use `identifier` from CLI `list-models`, including `<model>@<instance>@<provider>` for a named instance. For the default instance, use model names plus provider suffixes when creating resources, for example `qwen-turbo@Tongyi-Qianwen` for `llm_id` and `text-embedding-v4@Tongyi-Qianwen` for `embedding_model`. Some deployments return numeric `id` fields; those are server row IDs and should not be sent as `llm_id`.
 
-## Tenant Models (v0.27.0)
+## Tenant Models (v0.27.2)
 
 These methods use the `/api/v1/models` routes and authenticate with `RAGFLOW_API_KEY`.
 
 ```javascript
 // List the tenant's added models, optionally filtered by type
 const added = await client.listAddedModels({ type: "chat" });
-// GET /api/v1/models?type=chat -> { models: [...] }
+// GET /api/v1/models?type=chat -> [{ name, model_type, provider_name, ... }]
 
 // List the tenant's default models
 const defaults = await client.listDefaultModels();
@@ -499,13 +503,13 @@ await client.setDefaultModel({
 // PATCH /api/v1/models/default
 ```
 
-## Model Providers (v0.27.0)
+## Model Providers (v0.27.2)
 
-RAGFlow v0.27.0 provides provider/instance/model management under `/api/v1/providers`. All methods authenticate
+RAGFlow v0.27.2 provides provider/instance/model management under `/api/v1/providers`. All methods authenticate
 with `RAGFLOW_API_KEY`. Path segments are URL-encoded, so model identifiers containing `@` or `/` are handled
 automatically.
 
-In v0.27.0, each provider instance supports `PUT` and `GET` on `/instances/{instance_id_or_name}` for updating a
+In v0.27.2, each provider instance supports `PUT` and `GET` on `/instances/{instance_id_or_name}` for updating a
 single instance's credentials; the CLI uses `GET /instances` to list and `POST /instances` to create.
 
 ```javascript
@@ -513,7 +517,7 @@ single instance's credentials; the CLI uses `GET /instances` to list and `POST /
 await client.listProviders({ available: true });        // GET /api/v1/providers?available=true
 await client.getProvider("OpenAI");                      // GET /api/v1/providers/OpenAI
 await client.addProvider("OpenAI");                      // PUT /api/v1/providers { provider_name }
-await client.deleteProvider("OpenAI");                   // DELETE /api/v1/providers/OpenAI
+await destructiveClient.deleteProvider("OpenAI");                   // DELETE /api/v1/providers/OpenAI
 
 // Discover a provider's models (some providers fetch a live list from the remote API)
 await client.listProviderModels("OpenAI", { api_key: "sk-...", base_url: "" });
@@ -528,7 +532,7 @@ await client.createProviderInstance("OpenAI", {
   region: "",
   model_info: [],
 });                                                       // POST /api/v1/providers/OpenAI/instances
-await client.deleteProviderInstances("OpenAI", ["default"]);
+await destructiveClient.deleteProviderInstances("OpenAI", ["default"]);
 
 // Test a provider connection / API key without persisting an instance
 await client.verifyProvider("OpenAI", { api_key: "sk-...", base_url: "", region: "default" });
@@ -578,10 +582,10 @@ export RAGFLOW_URL=https://your-ragflow-instance.com
 export RAGFLOW_API_KEY=ragflow-xxxxx
 ```
 
-`RAGFLOW_URL` should be the server root, for example `http://127.0.0.1:9380`. Bare hosts such as `localhost:9380` are normalized to `http://localhost:9380`. The client adds `/api/v1` for REST endpoints and `/v1` for model discovery.
+`RAGFLOW_URL` should be the server root, for example `http://127.0.0.1:9380`. Bare hosts such as `localhost:9380` are normalized to `http://localhost:9380`. The client adds `/api/v1` for REST endpoints, including model discovery.
 
 ### Security Best Practices
 
 - **Production: Use HTTPS.** Set `RAGFLOW_URL=https://...` for production deployments to protect the API key in transit.
-- **Least-privilege keys.** Create dedicated API keys with minimal permissions for specific workflows rather than using admin-level keys.
+- **Dedicated keys.** Use a dedicated, rotatable automation key; RAGFlow API keys are tenant-scoped rather than permission-scoped.
 - **Protect secrets.** Never commit `RAGFLOW_API_KEY` to version control. Use environment variables or a `.env` file that is excluded from git.

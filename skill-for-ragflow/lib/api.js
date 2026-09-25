@@ -2,6 +2,7 @@ const https = require("https");
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const { randomBytes } = require("crypto");
 
 const DEFAULT_TIMEOUT = 30000;
 const MAX_RETRIES = 2;
@@ -15,18 +16,55 @@ function normalizeBaseUrl(baseUrl) {
   return /^[a-z][a-z0-9+.-]*:\/\//i.test(value) ? value : `http://${value}`;
 }
 
+function multipartName(value) {
+  const name = String(value);
+  if (/[\r\n\x00]/.test(name)) throw new Error("Multipart names must not contain CR, LF, or NUL");
+  return name.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function rejectRemovedParameters(data, replacements) {
+  for (const [key, replacement] of Object.entries(replacements)) {
+    if (Object.prototype.hasOwnProperty.call(data, key)) {
+      throw new Error(`Unsupported parameter ${key}. ${replacement}`);
+    }
+  }
+}
+
+const REMOVED_CHAT_PARAMETERS = {
+  legacy: "Use the current streaming format.",
+  conversation_id: "Use session_id.",
+  pass_all_history: "Use pass_all_history_messages.",
+};
+
 class RagflowClient {
   constructor(baseUrl, apiKey, options = {}) {
     if (!baseUrl) throw new Error("RAGFLOW_URL is required");
     if (!apiKey) throw new Error("RAGFLOW_API_KEY is required");
     this.baseUrl = normalizeBaseUrl(baseUrl);
     this.apiKey = apiKey;
+    this.allowDestructive = options.allowDestructive === true;
     this.apiPrefix = "/api/v1";
     this.timeout = options.timeout || DEFAULT_TIMEOUT;
     this.maxRetries = options.maxRetries !== undefined ? options.maxRetries : MAX_RETRIES;
   }
 
+  _assertDestructiveAllowed(method, endpoint, payload = {}) {
+    payload = payload || {};
+    const route = this._buildUrl(endpoint).pathname.replace(/^\/api\/v1/, "");
+    // DELETE /datasets/:id/chunks stops parsing; it does not delete stored chunks.
+    const deletesResources = method.toUpperCase() === "DELETE" && !/^\/datasets\/[^/]+\/chunks$/.test(route);
+    const metadataChange = /\/metadata\/update$|\/documents\/metadatas$/.test(route) &&
+      (Boolean(payload.deletes?.length) || !payload.selector?.document_ids?.length);
+    const purgeIngestion = route === "/documents/ingest" && String(payload.run ?? "1") === "1" && Boolean(payload.delete);
+    if (!this.allowDestructive && (deletesResources || metadataChange || purgeIngestion)) {
+      const error = new Error("Destructive operation requires explicit confirmation: use --confirm-destructive in the CLI or allowDestructive: true on a dedicated client after verifying the target.");
+      error.code = "CONFIRMATION_REQUIRED";
+      throw error;
+    }
+  }
+
   async request(method, endpoint, options = {}) {
+    this._assertDestructiveAllowed(method, endpoint, options.json);
     const isMultipart = options.files && options.files.length > 0;
 
     const headers = {
@@ -35,7 +73,7 @@ class RagflowClient {
 
     let body;
     if (isMultipart) {
-      const boundary = "----FormBoundary" + Math.random().toString(36).slice(2);
+      const boundary = "----FormBoundary" + randomBytes(24).toString("hex");
       headers["Content-Type"] = `multipart/form-data; boundary=${boundary}`;
       body = this._buildMultipart(options.files, options.json || {}, boundary);
     } else if (options.json) {
@@ -58,7 +96,8 @@ class RagflowClient {
           body,
           options.timeout,
           options.apiPrefix,
-          options.rawResponse
+          options.rawResponse,
+          options.fileResponse
         );
       } catch (err) {
         lastError = err;
@@ -102,7 +141,7 @@ class RagflowClient {
     return err;
   }
 
-  _doRequest(method, endpoint, headers, body, timeoutOverride, apiPrefix = this.apiPrefix, rawResponse = false) {
+  _doRequest(method, endpoint, headers, body, timeoutOverride, apiPrefix = this.apiPrefix, rawResponse = false, fileResponse = false) {
     const url = this._buildUrl(endpoint, apiPrefix);
     const timeout = timeoutOverride || this.timeout;
 
@@ -112,7 +151,29 @@ class RagflowClient {
         const chunks = [];
         res.on("data", (c) => chunks.push(c));
         res.on("end", () => {
-          const raw = Buffer.concat(chunks).toString("utf-8");
+          const bytes = Buffer.concat(chunks);
+          const raw = bytes.toString("utf-8");
+          if (fileResponse) {
+            let data;
+            try { data = JSON.parse(raw); } catch { /* Binary file. */ }
+            const disposition = res.headers["content-disposition"] || "";
+            const apiError = !disposition && data && typeof data.code === "number" && data.code !== 0;
+            if (res.statusCode < 200 || res.statusCode >= 300 || apiError) {
+              const err = new Error(data?.message || `HTTP ${res.statusCode}`);
+              err.status = res.statusCode;
+              err.code = data?.code;
+              reject(err);
+              return;
+            }
+            const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+            let name = disposition.match(/filename="([^"]+)"|filename=([^;]+)/i)?.slice(1).find(Boolean) || "";
+            if (encodedName) {
+              try { name = decodeURIComponent(encodedName); } catch { /* Use plain filename. */ }
+            }
+            resolve({ content: bytes.toString("base64"), encoding: "base64", name,
+              content_type: res.headers["content-type"] || "application/octet-stream", size: bytes.length });
+            return;
+          }
           try {
             const data = JSON.parse(raw);
             if (rawResponse) {
@@ -168,13 +229,13 @@ class RagflowClient {
     const parts = [];
     for (const [key, value] of Object.entries(fields)) {
       parts.push(Buffer.from(
-        `--${boundary}\r\nContent-Disposition: form-data; name="${key}"\r\n\r\n${value}`
+        `--${boundary}\r\nContent-Disposition: form-data; name="${multipartName(key)}"\r\n\r\n${value}`
       ));
       parts.push(Buffer.from("\r\n"));
     }
     for (const file of files) {
       const filePath = typeof file === "object" ? file.path : file;
-      const basename = typeof file === "object" && file.name ? file.name : path.basename(filePath);
+      const basename = multipartName(typeof file === "object" && file.name ? file.name : path.basename(filePath));
       const content = fs.readFileSync(filePath);
       const header = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${basename}"\r\nContent-Type: application/octet-stream\r\n\r\n`;
       parts.push(Buffer.from(header, "utf-8"));
@@ -186,9 +247,7 @@ class RagflowClient {
   }
 
   async _streamRequest(method, endpoint, json, options = {}) {
-    if (typeof options === "number") {
-      options = { timeout: options };
-    }
+    this._assertDestructiveAllowed(method, endpoint, json);
     const url = this._buildUrl(endpoint, options.apiPrefix || this.apiPrefix);
     const body = JSON.stringify(json);
     const timeout = options.timeout || this.timeout * 3;
@@ -348,15 +407,15 @@ class RagflowClient {
   // ── Document Download ──
 
   async downloadDocument(datasetId, documentId) {
-    return this.request("GET", `/datasets/${datasetId}/documents/${documentId}`);
+    return this.request("GET", `/datasets/${datasetId}/documents/${documentId}`, { fileResponse: true });
   }
 
   async downloadDocumentById(documentId) {
-    return this.request("GET", `/documents/${documentId}`);
+    return this.request("GET", `/documents/${documentId}`, { fileResponse: true });
   }
 
   async previewDocument(documentId) {
-    return this.request("GET", `/documents/${documentId}/preview`);
+    return this.request("GET", `/documents/${documentId}/preview`, { fileResponse: true });
   }
 
   async ingestDocuments(documentIds, options = {}) {
@@ -491,6 +550,7 @@ class RagflowClient {
   // ── Retrieval ──
 
   async retrieve(params) {
+    rejectRemovedParameters(params, { top_k: "Use knn_top_k.", doc_ids: "Use document_ids.", size: "Use page_size." });
     return this.request("POST", "/retrieval", { json: params });
   }
 
@@ -599,6 +659,7 @@ class RagflowClient {
   // ── Chat (Conversation) ──
 
   async chat(chatId, sessionId, question, params = {}) {
+    rejectRemovedParameters(params, REMOVED_CHAT_PARAMETERS);
     return this._streamRequest(
       "POST", `/chat/completions`,
       { chat_id: chatId, question, session_id: sessionId, ...params }
@@ -606,6 +667,7 @@ class RagflowClient {
   }
 
   async chatSession(chatId, sessionId, data = {}) {
+    rejectRemovedParameters(data, REMOVED_CHAT_PARAMETERS);
     const payload = { ...data, chat_id: chatId, session_id: sessionId };
     if (!payload.question && payload.messages) {
       const userMessages = Array.isArray(payload.messages)
@@ -615,7 +677,7 @@ class RagflowClient {
       if (lastUserMessage) payload.question = lastUserMessage.content;
     }
     // preserve messages when pass_all_history_messages is set
-    if (!payload.pass_all_history_messages && !payload.pass_all_history) {
+    if (!payload.pass_all_history_messages) {
       delete payload.messages;
     }
     if (!payload.question) {
@@ -731,10 +793,10 @@ class RagflowClient {
   }
 
   async ensureEmbeddedChatSession(chatId, beta, data = {}) {
+    rejectRemovedParameters(data, REMOVED_CHAT_PARAMETERS);
     if (data.session_id) return data.session_id;
     const bootstrap = { ...data, question: "", stream: true };
     delete bootstrap.session_id;
-    delete bootstrap.conversation_id;
     const result = await this._streamRequest("POST", `/chatbots/${chatId}/completions`, bootstrap, { authToken: beta });
     if (!result.session_id) {
       throw new Error("Embedded chat did not return a session_id during session bootstrap");
@@ -743,6 +805,7 @@ class RagflowClient {
   }
 
   async embeddedChat(chatId, beta, data = {}) {
+    rejectRemovedParameters(data, REMOVED_CHAT_PARAMETERS);
     if (data.stream === false || data.stream === "false") {
       return this.request("POST", `/chatbots/${chatId}/completions`, { authToken: beta, json: data });
     }
@@ -764,21 +827,10 @@ class RagflowClient {
     return this.request("GET", `/models${suffix ? `?${suffix}` : ""}`);
   }
 
-  // Legacy model discovery (RAGFlow v0.26.x): factory-grouped model catalog.
-  // Superseded by GET /api/v1/models in v0.27.0 but kept for fallback.
-  async listModelsLegacy(params = {}) {
-    const query = this._buildQuery(params);
-    return this.request("GET", `/llm/my_llms?${query.toString()}`, {
-      apiPrefix: "/v1",
-    });
-  }
-
   // ── Tenant Models ──
 
   async listAddedModels(params = {}) {
-    const query = this._buildQuery(params);
-    const suffix = query.toString();
-    return this.request("GET", `/models${suffix ? `?${suffix}` : ""}`);
+    return this.listModels(params);
   }
 
   async listDefaultModels() {

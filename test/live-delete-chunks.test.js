@@ -21,7 +21,7 @@ function firstDocumentId(upload) {
 }
 
 test("live delete-chunks emits JSON diagnostics for manual chunk deletion", { skip: liveSkip }, async () => {
-  const client = createClient({ timeout: Number(process.env.RAGFLOW_LIVE_TIMEOUT_MS || 60000) });
+  const client = createClient({ allowDestructive: true, timeout: Number(process.env.RAGFLOW_LIVE_TIMEOUT_MS || 60000) });
   const marker = `RAGFLOW_DELETE_JSON_${Date.now()}`;
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ragflow-live-delete-json-"));
   const filePath = path.join(tempDir, "delete-json.md");
@@ -69,7 +69,7 @@ test("live delete-chunks emits JSON diagnostics for manual chunk deletion", { sk
       process.execPath,
       [
         cliPath,
-        "delete-chunks",
+        "delete-chunks", "--confirm-destructive",
         "--dataset",
         datasetId,
         "--document",

@@ -21,6 +21,8 @@ That folder must contain:
 
 The published package should also include the minimal agent examples under `references/examples/agents/`.
 
+Keep the final release receipt in this document, outside `skill-for-ragflow/`. Remove temporary scan reports and audit artifacts after verification; do not include or link to maintainer records from the published package.
+
 ## Current metadata
 
 Keep these values aligned before publishing:
@@ -143,3 +145,16 @@ Use version bumps consistently:
 - patch: doc fixes, small bug fixes, compatibility improvements
 - minor: new commands, new optional features, additive API support
 - major: breaking CLI changes, changed required environment variables, incompatible behavior changes
+
+## Latest verified release: v3.0.0
+
+- Published: 2026-09-25; public latest verified as `3.0.0`.
+- Version ID: `k9751zbncyhe1w5047frb3b8t98f3c2n`
+- Publication attempt ID: `zx7a68vnzcen278a4wc5rprs858f3aar`
+- Package fingerprint: `1fa4e6819ef38577852cd3a2a91432aaa5f425907c639d77c97c0ecf8295d7a6`
+- All 15 remote file SHA-256 hashes matched the local package; no maintenance reports were included.
+- Validation: 65 tests passed, 2 live tests skipped; subsequent CLI run passed 26 tests including an additional origin-validation regression. Skill validator and whitespace checks passed.
+- Breaking change: destructive operations require explicit CLI or dedicated-client opt-in.
+- Static analysis: `clean`, no findings.
+- Clawscan: `clean`, verdict `benign`, confidence `high`.
+- Registry moderation: `clean`, `isSuspicious: false`, `isMalwareBlocked: false`.

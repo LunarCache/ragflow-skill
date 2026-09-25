@@ -16,15 +16,15 @@
 | Iteration agent creates successfully but fails at execution time | `items_ref` resolved to a non-list, often because the upstream `Agent` did not produce `structured.items` | Make the upstream `Agent` emit an object with an `items` array and point `Iteration.params.items_ref` at `agent:0@structured.items`; start from `references/examples/agents/04-iteration-agent.json` |
 | "Dataset doesn't own parsed file" | The dataset has no parsed documents yet | Upload files and start parsing before creating a chat assistant |
 | "Chunk not found" | Chunk ID does not exist or belongs to another document | Verify the chunk ID with `list-chunks` before `update-chunk` or `delete-chunks` |
-| `rm_chunk deleted chunks 0, expect 1` | The RAGFlow server accepted the chunk ID but document-store search/delete visibility lagged behind exact ID visibility | `delete-chunks` retries only after exact ID lookup confirms the chunk exists; with `--json`, consume `existing_chunk_ids` and `missing_chunk_ids`; tune with `RAGFLOW_DELETE_CHUNK_RETRIES` and `RAGFLOW_DELETE_CHUNK_RETRY_DELAY_MS`, or run `node scripts/repro-delete-chunks.js` for a clean diagnosis |
+| `rm_chunk deleted chunks 0, expect 1` | The RAGFlow server accepted the chunk ID but document-store search/delete visibility lagged behind exact ID visibility | `delete-chunks` retries only after exact ID lookup confirms the chunk exists; with `--json`, consume `existing_chunk_ids` and `missing_chunk_ids`; tune with `RAGFLOW_DELETE_CHUNK_RETRIES` and `RAGFLOW_DELETE_CHUNK_RETRY_DELAY_MS`, or run `node scripts/repro-delete-chunks.js --confirm-destructive` for a clean diagnosis |
 | "`content` is required" | Empty content was submitted to chunk update or set | Provide non-empty content; omitting `--content` on the CLI keeps the existing chunk text |
 | `chat-session` returns Not Found | You are calling the login-session frontend route instead of the API-key SDK route | Use the current CLI or client, which posts to `/api/v1/chat/completions` with `chat_id` and `session_id` in the body |
 | `embed-code` or `embed-chat` returns Unauthorized | The embedded shared-site routes authenticate with the system token `beta`, not `RAGFLOW_API_KEY` | Let the CLI auto-create/reuse a token, or pass a valid `--beta` from `/api/v1/system/tokens` |
 | `embed-code` creates a new token unexpectedly | No existing system token had a `beta` value | This matches RAGFlow's embed UI behavior; use `list-system-tokens` to inspect current tokens |
 | `embed-chat` returns only the prologue or an empty answer | The embedded chatbot route was called without `session_id`; RAGFlow uses that first call to create the iframe session | Use the CLI `embed-chat` command, which bootstraps `session_id` automatically, or call `ensureEmbeddedChatSession()` before `embeddedChat()` in API code |
 | `list-models` returns Unauthorized | The `/api/v1/models` endpoint rejected the API key | Verify `RAGFLOW_API_KEY` is valid and has not expired |
-| `update-document` gets Method Not Allowed | The server does not match the v0.27.0 route shape expected by this skill | Use a v0.27.0-compatible server; document updates are sent with `PATCH` |
-| A list command fails with a `page_size` error | RAGFlow v0.27.0 caps `page_size` at 100 on list endpoints | The CLI clamps `--page-size` to 100 and warns; lower the value or page through results |
+| `update-document` gets Method Not Allowed | The server does not match the v0.27.2 route shape expected by this skill | Use a v0.27.2-compatible server; document updates are sent with `PATCH` |
+| A list command fails with a `page_size` error | RAGFlow v0.27.2 caps `page_size` at 100 on list endpoints | The CLI clamps `--page-size` to 100 and warns; lower the value or page through results |
 | `Invalid URL` | `RAGFLOW_URL` is empty or malformed | Use a server root such as `http://localhost:9380`; bare hosts like `localhost:9380` are normalized to `http://...` |
 | Connection refused | `RAGFLOW_URL` is wrong or the server is down | Verify the URL and that the RAGFlow server is running |
 | API key exposed in logs or chat | The API key was shared or logged | Never share keys in chat; regenerate leaked keys and prefer `RAGFLOW_PROVIDER_API_KEY` or `--api-key-file` for provider credentials |
@@ -33,3 +33,11 @@
 | "Invalid tag format" | Document tags were submitted in an unsupported format (e.g. nested objects) | Use simple strings or arrays of strings for document tags |
 
 In `--json` mode, command failures are emitted on stdout as `{ "error": { "message", "raw_message", "code", "status", "command" } }` and exit non-zero. `delete-chunks` may also include `existing_chunk_ids`, `missing_chunk_ids`, `retry_count`, `retries`, and `delete_chunk_diagnostics`.
+
+## v0.27.2 retrieval and parser changes
+
+- If retrieval rejects `rerank_candidates_count`, set `--rerank-candidates-count` to at least `--page × --top-n`. Without flags the server uses page 1, page size 30, and 64 candidates; page 3 at size 30 needs at least 90 candidates.
+- If `knn_num_candidates` is rejected, make it at least `knn_top_k` (1024 by default). Prefer `--knn-top-k` over deprecated `--top-k`.
+- Connector creation requires `name`, `source`, and `config`; `type` is not a substitute for `source`.
+- Dataset/document responses omit legacy `parser_config.graphrag` and `parser_config.raptor` entries. Missing keys do not prove that an indexing task failed; inspect `trace-graphrag` / `trace-raptor` and graph output.
+- Document structure graphs now include total and returned entity/relation counts. A limited or filtered graph can return fewer nodes than the totals.

@@ -298,14 +298,8 @@ test("agentChat preserves structured output", async () => {
 test("downloadDocument routes correctly", async () => {
   const server = http.createServer((req, res) => {
     if (req.method === "GET" && req.url === "/api/v1/datasets/dataset1/documents/doc1") {
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({
-        code: 0,
-        data: {
-          content: "base64encoded...",
-          name: "doc.pdf",
-        },
-      }));
+      res.writeHead(200, { "content-type": "application/pdf", "content-disposition": 'attachment; filename="doc.pdf"' });
+      res.end(Buffer.from([0x25, 0x50, 0x44, 0x46, 0x00, 0xff]));
       return;
     }
 
@@ -324,8 +318,8 @@ test("downloadDocument routes correctly", async () => {
     const client = createClient();
     const result = await client.downloadDocument("dataset1", "doc1");
     assert.deepEqual(result, {
-      content: "base64encoded...",
-      name: "doc.pdf",
+      content: Buffer.from([0x25, 0x50, 0x44, 0x46, 0x00, 0xff]).toString("base64"),
+      encoding: "base64", name: "doc.pdf", content_type: "application/pdf", size: 6,
     });
   } finally {
     if (previousUrl === undefined) delete process.env.RAGFLOW_URL;
@@ -339,14 +333,8 @@ test("downloadDocument routes correctly", async () => {
 test("downloadDocumentById routes correctly", async () => {
   const server = http.createServer((req, res) => {
     if (req.method === "GET" && req.url === "/api/v1/documents/doc2") {
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({
-        code: 0,
-        data: {
-          content: "base64encoded...",
-          name: "doc.pdf",
-        },
-      }));
+      res.writeHead(200, { "content-type": "application/pdf", "content-disposition": 'attachment; filename="doc.pdf"' });
+      res.end(Buffer.from([0x25, 0x50, 0x44, 0x46, 0x00, 0xff]));
       return;
     }
 
@@ -365,8 +353,8 @@ test("downloadDocumentById routes correctly", async () => {
     const client = createClient();
     const result = await client.downloadDocumentById("doc2");
     assert.deepEqual(result, {
-      content: "base64encoded...",
-      name: "doc.pdf",
+      content: Buffer.from([0x25, 0x50, 0x44, 0x46, 0x00, 0xff]).toString("base64"),
+      encoding: "base64", name: "doc.pdf", content_type: "application/pdf", size: 6,
     });
   } finally {
     if (previousUrl === undefined) delete process.env.RAGFLOW_URL;
@@ -428,9 +416,9 @@ test("listConnectors returns connectors for tenant", async () => {
 
 test("createConnector sends correct payload", async () => {
   const connectorData = {
-    name: "REST API",
-    type: "rest",
-    config: { url: "https://api.example.com", method: "GET" },
+    name: "Documentation sitemap",
+    source: "sitemap",
+    config: { sitemap_url: "https://example.com/sitemap.xml" },
   };
   const server = http.createServer((req, res) => {
     if (req.method === "POST" && req.url === "/api/v1/connectors") {
@@ -585,7 +573,7 @@ test("deleteConnector sends DELETE request", async () => {
   process.env.RAGFLOW_API_KEY = "test-key";
 
   try {
-    const client = createClient();
+    const client = createClient({ allowDestructive: true });
     const result = await client.deleteConnector("conn123");
     assert.deepEqual(result, { id: "conn123", deleted: true });
   } finally {
@@ -697,15 +685,8 @@ test("previewDocument routes to /documents/{id}/preview", async () => {
     requestUrl = req.url;
 
     if (req.method === "GET" && req.url === "/api/v1/documents/doc-preview-1/preview") {
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({
-        code: 0,
-        data: {
-          id: "doc-preview-1",
-          name: "report.pdf",
-          content: "preview-content-base64",
-        },
-      }));
+      res.writeHead(200, { "content-type": "application/pdf", "content-disposition": 'inline; filename="report.pdf"' });
+      res.end(Buffer.from([0x25, 0x50, 0x44, 0x46, 0x00, 0xff]));
       return;
     }
 
@@ -725,7 +706,7 @@ test("previewDocument routes to /documents/{id}/preview", async () => {
     const result = await client.previewDocument("doc-preview-1");
     assert.equal(requestMethod, "GET", "Should use GET method");
     assert.equal(requestUrl, "/api/v1/documents/doc-preview-1/preview", "Should call preview endpoint");
-    assert.equal(result.id, "doc-preview-1");
+    assert.deepEqual(Buffer.from(result.content, "base64"), Buffer.from([0x25, 0x50, 0x44, 0x46, 0x00, 0xff]));
     assert.equal(result.name, "report.pdf");
   } finally {
     if (previousUrl === undefined) delete process.env.RAGFLOW_URL;
@@ -858,7 +839,7 @@ test("daily workflow client methods build correct method/url/body", async () => 
   process.env.RAGFLOW_API_KEY = "test-key";
 
   try {
-    const client = createClient();
+    const client = createClient({ allowDestructive: true });
 
     const checks = [
       [() => client.ingestDocuments(["doc1"], { run: "1", delete: true }), "POST", "/api/v1/documents/ingest", { doc_ids: ["doc1"], run: "1", delete: true }],
@@ -936,7 +917,7 @@ test("provider and model client methods build correct method/url/body", async ()
   process.env.RAGFLOW_API_KEY = "test-key";
 
   try {
-    const client = createClient();
+    const client = createClient({ allowDestructive: true });
 
     const checks = [
       [() => client.listAddedModels({ type: "chat" }), "GET", "/api/v1/models?type=chat", undefined],
@@ -974,3 +955,92 @@ test("provider and model client methods build correct method/url/body", async ()
   }
 });
 
+
+test("file responses reject API/HTTP errors and preserve JSON document bytes", async () => {
+  const original = Buffer.from('{"code":102,"message":"this is an uploaded JSON document"}');
+  const server = http.createServer((req, res) => {
+    if (req.url === "/api/v1/documents/json-file") {
+      res.writeHead(200, { "content-type": "application/json", "content-disposition": 'attachment; filename="data.json"' });
+      res.end(original);
+    } else if (req.url === "/api/v1/documents/api-error") {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ code: 102, message: "document not found" }));
+    } else {
+      res.writeHead(403, { "content-type": "text/plain" });
+      res.end("Forbidden");
+    }
+  });
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  const { RagflowClient } = require("../skill-for-ragflow/lib/api.js");
+  const client = new RagflowClient(`http://127.0.0.1:${server.address().port}`, "test-key", { maxRetries: 0 });
+  try {
+    const file = await client.downloadDocumentById("json-file");
+    assert.deepEqual(Buffer.from(file.content, "base64"), original);
+    await assert.rejects(client.downloadDocumentById("api-error"), err => err.code === 102 && /document not found/.test(err.message));
+    await assert.rejects(client.downloadDocumentById("forbidden"), err => err.status === 403);
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});
+
+test("client rejects removed parameters instead of forwarding or translating them", async () => {
+  const { RagflowClient } = require("../skill-for-ragflow/lib/api.js");
+  const client = new RagflowClient("http://127.0.0.1:1", "test-key");
+  let requests = 0;
+  client.request = client._streamRequest = async () => { requests++; };
+  for (const key of ["top_k", "doc_ids", "size"]) {
+    await assert.rejects(client.retrieve({ question: "q", [key]: 1 }), /Unsupported parameter/);
+  }
+  for (const key of ["legacy", "conversation_id", "pass_all_history"]) {
+    await assert.rejects(client.chat("c", "s", "q", { [key]: false }), /Unsupported parameter/);
+    await assert.rejects(client.chatSession("c", "s", { question: "q", [key]: false }), /Unsupported parameter/);
+    await assert.rejects(client.embeddedChat("c", "b", { [key]: false }), /Unsupported parameter/);
+  }
+  assert.equal(requests, 0);
+});
+
+test("destructive requests require opt-in before network access, including raw and streaming calls", async () => {
+  const client = new RagflowClient("http://127.0.0.1:1", "test-key", { maxRetries: 0 });
+  let sent = 0;
+  client._doRequest = async () => { sent++; return true; };
+  for (const [method, endpoint, json] of [
+    ["DELETE", "/datasets", { ids: ["ds1"] }],
+    ["DELETE", "/providers/OpenAI"],
+    ["DELETE", "/datasets/ds1/documents/doc1/chunks", { chunk_ids: ["c1"] }],
+    ["POST", "/datasets/ds1/metadata/update", { updates: [] }],
+    ["POST", "/datasets/ds1/metadata/update", { selector: { document_ids: ["doc1"] }, deletes: ["author"] }],
+    ["PUT", "/datasets/ds1/documents/metadatas", { selector: { document_ids: [] } }],
+    ["POST", "/documents/ingest", { delete: true }],
+  ]) {
+    await assert.rejects(client.request(method, endpoint, { json }), { code: "CONFIRMATION_REQUIRED" });
+  }
+  await assert.rejects(client._streamRequest("DELETE", "/datasets", {}), { code: "CONFIRMATION_REQUIRED" });
+  assert.equal(sent, 0);
+  await client.stopParsing("ds1", ["doc1"]);
+  await client.updateMetadata("ds1", { selector: { document_ids: ["doc1"] }, updates: [] });
+  await client.ingestDocuments(["doc1"], { run: "2", delete: true });
+  assert.equal(sent, 3);
+  const confirmed = new RagflowClient("http://127.0.0.1:1", "test-key", { allowDestructive: true });
+  confirmed._doRequest = client._doRequest;
+  await confirmed.deleteDatasets(["ds1"]);
+  assert.equal(sent, 4);
+});
+
+test("multipart names reject header injection and preserve quoted unicode filenames", async () => {
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const path = require("node:path");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ragflow-upload-"));
+  const file = path.join(dir, "input");
+  fs.writeFileSync(file, Buffer.from([0, 1, 255]));
+  const client = new RagflowClient("http://127.0.0.1:1", "test-key");
+  try {
+    for (const name of ["bad\rname", "bad\nname", "bad\0name"]) {
+      await assert.rejects(client.uploadDocuments("ds1", [{ path: file, name }]), /Multipart names/);
+      assert.throws(() => client._buildMultipart([], { [name]: "value" }, "boundary"), /Multipart names/);
+    }
+    const body = client._buildMultipart([{ path: file, name: '中文"文件.txt' }], {}, "boundary");
+    assert.ok(body.includes(Buffer.from('filename="中文\\"文件.txt"')));
+    assert.ok(body.includes(Buffer.from([0, 1, 255])));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

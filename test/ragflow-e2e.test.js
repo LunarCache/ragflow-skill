@@ -87,8 +87,7 @@ function createStatefulMockServer() {
       const chatCompletionMatch = pathname.match(/^\/api\/v1\/chat\/completions$/);
       const agentMatch = pathname.match(/^\/api\/v1\/agents\/([^/]+)$/);
       const agentSessionsMatch = pathname.match(/^\/api\/v1\/agents\/([^/]+)\/sessions$/);
-      const agentCompletionMatch = pathname.match(/^\/api\/v1\/agents\/([^/]+)\/completions$/);
-      const agentCompletionNewMatch = pathname.match(/^\/api\/v1\/agents\/chat\/completion$/);
+      const agentCompletionMatch = pathname === "/api/v1/agents/chat/completions";
 
       if (pathname === "/api/v1/models") {
         jsonResponse(res, state.models);
@@ -426,8 +425,8 @@ function createStatefulMockServer() {
         return;
       }
 
-      if ((agentCompletionMatch || agentCompletionNewMatch) && req.method === "POST") {
-        assert.equal(json.agent_id || agentCompletionMatch?.[1], "agent1");
+      if (agentCompletionMatch && req.method === "POST") {
+        assert.equal(json.agent_id, "agent1");
         const question = json.question || "";
         sseResponse(res, {
           answer: question || "agent response",

@@ -1,16 +1,37 @@
 # RAGFlow Skill
 
-A Codex/OpenCode skill for operating [RAGFlow](https://github.com/infiniflow/ragflow) v0.27.0 through a bundled Node.js CLI and API client.
+A Codex/OpenCode skill for operating [RAGFlow](https://github.com/infiniflow/ragflow) v0.27.2 through a bundled Node.js CLI and API client.
 
 ## Features
 
-- **Daily RAGFlow v0.27.0 workflow coverage** - datasets, documents, parsing, chunks, metadata, retrieval, RAPTOR/GraphRAG, chat sessions, agents, embeds, model discovery, providers, connectors, and health checks
+- **Daily RAGFlow v0.27.2 workflow coverage** - datasets, documents, parsing, chunks, metadata, retrieval, RAPTOR/GraphRAG, chat sessions, agents, embeds, model discovery, providers, connectors, and health checks
 - **Zero dependencies** - pure Node.js, no npm install required
 - **JSON-first output** - `--json` flag for machine-readable output suitable for pipelines
 - **Robust error handling** - automatic retries for transient failures, structured error envelopes
 - **Comprehensive documentation** - command reference, API examples, troubleshooting guide
 
 ## Update Notes
+
+### v3.0.0 (RAGFlow v0.27.2)
+
+- Require explicit per-invocation confirmation for destructive CLI operations; programmatic clients default to blocking destructive requests.
+- Escape embedded HTML, validate widget message sources and URLs, and reject multipart header injection in upload names.
+- Breaking change: authorized deletion commands now require `--confirm-destructive`; dedicated destructive clients require `allowDestructive: true`.
+
+### v2.0.1 (RAGFlow v0.27.2)
+
+- Keep compatibility analysis and API audit records in repository-only maintenance docs, outside the published Skill package. Remove package links to these records. Runtime behavior is unchanged.
+
+### v2.0.0 (RAGFlow v0.27.2)
+
+- Audited against official stable tag `v0.27.2`, commit `a024bea0cd93f39e6652a42bf84dd20c55bc560b` (released 2026-09-10).
+- Removed pre-v0.27 model discovery (`listModelsLegacy` and automatic fallback); v0.27.2 is the supported baseline. `list-models` preserves provider instances and emits ready-to-use model identifiers.
+- Removed compatibility parameters: chat `--legacy`, embedded `--conversation-id`, provider `--api-key`, and redundant long-option aliases. Use current session/streaming parameters and provider-key files or environment variables.
+- Fixed binary downloads/previews and added `--output` to save bytes without overwriting files.
+- Added retrieval flags for `knn_top_k`, `knn_num_candidates`, `rerank_candidates_count`, pagination, document/metadata filters, highlighting, and knowledge-compilation inclusion. Retrieval requires `--knn-top-k`; the old `--top-k` / `-k` retrieval aliases are removed.
+- Corrected the retrieval result count and documented the server's 30-item default and rerank pagination constraint.
+- Corrected connector payload examples to use `source`; added Sitemap and WebDAV custom-CA guidance.
+- Updated agent and parser guidance for stricter integer validation, graph counts, and omitted legacy RAPTOR/GraphRAG parser settings.
 
 ### v1.8.0 (RAGFlow v0.27.0)
 
@@ -244,7 +265,7 @@ const agentAnswer = await client.agentChat(agentId, agentSession.id, "Summarize 
 ## Requirements
 
 - **Node.js** 18+ (uses built-in `node:test` and `fetch`)
-- **RAGFlow** v0.27.0 server
+- **RAGFlow** v0.27.2 server
 
 ## License
 

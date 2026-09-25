@@ -61,7 +61,7 @@ function setAgentLlm(dsl, componentId, llmId) {
 }
 
 test("live common agent creation flow creates visible agents and supports minimal runtime checks", { skip: liveSkip }, async () => {
-  const client = createClient({ timeout: Number(process.env.RAGFLOW_LIVE_TIMEOUT_MS || 120000) });
+  const client = createClient({ allowDestructive: true, timeout: Number(process.env.RAGFLOW_LIVE_TIMEOUT_MS || 120000) });
   const stamp = new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 14);
   const embeddingModel = process.env.RAGFLOW_LIVE_EMBEDDING_MODEL || "text-embedding-v4@Tongyi-Qianwen";
   const chatModel = process.env.RAGFLOW_LIVE_CHAT_MODEL || "qwen-turbo@Tongyi-Qianwen";

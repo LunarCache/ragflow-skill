@@ -1,6 +1,6 @@
 ---
 name: skill-for-ragflow
-description: Operate RAGFlow v0.27.0 deployments through a bundled Node CLI for everyday knowledge-base setup, document ingestion, parsing, retrieval, chat assistants, agents, GraphRAG, connectors, models, and diagnostics. Use when a request explicitly involves a RAGFlow server, dataset, document pipeline, or RAGFlow agent.
+description: Operate RAGFlow v0.27.2 deployments through a bundled Node CLI for everyday knowledge-base setup, document ingestion, parsing, retrieval, chat assistants, agents, GraphRAG, connectors, models, and diagnostics. Use when a request explicitly involves a RAGFlow server, dataset, document pipeline, or RAGFlow agent.
 metadata:
   openclaw:
     requires:
@@ -15,18 +15,20 @@ metadata:
 
 # RAGFlow Skill
 
-Operate common RAGFlow v0.27.0 workflows through `node {baseDir}/scripts/ragflow.js <command> [options]`. Prefer `--json` when parsing or chaining results. Prioritize daily operations over exhaustive API coverage.
+Operate common RAGFlow v0.27.2 workflows through `node {baseDir}/scripts/ragflow.js <command> [options]`. Prefer `--json` when parsing or chaining results. Prioritize daily operations over exhaustive API coverage.
+
+This package targets v0.27.2 and accepts only current API parameters. Use `--knn-top-k` for retrieval and `--session` for chat; no deprecated aliases or legacy streaming mode are supported.
 
 ## Requirements
 
 - Set `RAGFLOW_URL` and `RAGFLOW_API_KEY` in the environment or this skill's `.env`.
 - Use Node.js to run bundled scripts.
-- Run `system-health --json` after first-time setup to verify service reachability and dependencies. Use `list-datasets --page-size 1 --json` to verify API-key authentication.
+- Run `system-health --json` after first-time setup to verify service reachability and dependencies. Run `system-version --json` to identify the deployment version. Use `list-datasets --page-size 1 --json` to verify API-key authentication.
 
 ## Security Notes
 
 - **Use HTTPS in production.** Production deployments should use `https://` for `RAGFLOW_URL` to protect the API key in transit. Local development (`http://localhost`) is acceptable for testing.
-- **Use a dedicated, rotatable API key for automation.** RAGFlow v0.27.0 API keys are tenant-scoped rather than permission-scoped.
+- **Use a dedicated, rotatable API key for automation.** RAGFlow v0.27.2 API keys are tenant-scoped rather than permission-scoped.
 - **Protect your API key.** Never share `RAGFLOW_API_KEY` in chat messages or commit it to version control. Use environment variables or the skill's `.env` file.
 
 ## Quick Command Reference
@@ -74,18 +76,13 @@ Operate common RAGFlow v0.27.0 workflows through `node {baseDir}/scripts/ragflow
 
 `agent-chat` streams by default. Use `--stream false` for one final JSON response.
 
-### Agent tags workflow
-
-1. `list-agent-tags --agent <agent_id>`
-2. `update-agent-tags --agent <agent_id> --tags "Tag1,Tag2"`
-
 ### Connector workflow
 
 1. `create-connector --config @connector.json`
 2. `list-connectors`
 3. `get-connector --id <id>`
 
-### Model provider workflow (v0.27.0)
+### Model provider workflow (v0.27.2)
 
 1. `list-providers --available` to see configurable providers
 2. `add-provider --name <provider>`
@@ -95,16 +92,9 @@ Operate common RAGFlow v0.27.0 workflows through `node {baseDir}/scripts/ragflow
 
 Use `verify-provider --name <provider>` with `RAGFLOW_PROVIDER_API_KEY` set, or pass `--api-key-file <path>`, to test a key without persisting an instance.
 
-### RAPTOR workflow
+### Indexing and retrieval
 
-1. `run-raptor --dataset <id>`
-2. `trace-raptor --dataset <id>`
-
-### GraphRAG workflow
-
-1. `run-graphrag --dataset <id>`
-2. `trace-graphrag --dataset <id>`
-3. `get-knowledge-graph --dataset <id>`
+Run `run-raptor --dataset <id>` then `trace-raptor --dataset <id>`, or the equivalent `run-graphrag` / `trace-graphrag` commands. Retrieval uses `--knn-top-k`; when paginating, set `--rerank-candidates-count` to cover `--page × --top-n`. Read the command reference for server defaults and filtering.
 
 ### Embedded website access
 
@@ -126,11 +116,11 @@ The first step in any RAGFlow operation is resolving the target resource ID. Aft
 
 ## Key Constraints
 
-- **Confirm destructive scope.** Confirm the exact target before any `delete-*` command or before `update-metadata` deletes metadata or selects every document. Skip confirmation only when removing temporary resources created in the same requested workflow.
+- **Confirm destructive scope.** Verify that the user authorized the exact target before deletion, metadata removal or dataset-wide metadata changes, or ingestion that purges existing tasks/chunks. Then pass `--confirm-destructive` for that invocation; the CLI otherwise refuses the request. Existing explicit authorization and cleanup of temporary resources from the requested workflow do not require a repeated question. Never add the flag automatically in response to a refusal.
 - **Choose the ingestion path first.** For built-in chunking, upload documents, adjust their parser configuration when needed, then run `start-parsing`. For ingestion-pipeline datasets, use `ingest-documents` instead.
 - **Preserve source filenames.** When an attachment is stored under a temporary or task-generated path, upload it as `--files <original-name>=<path>` so RAGFlow retains the user-facing name.
-- **Resolve complete, stable inputs.** Discover resource IDs with the corresponding `list-*` or `get-*` command, and paginate beyond RAGFlow's 100-item list limit. Use `<model>@<provider>` identifiers from `list-models` for `--embedding-model` and `--llm-id`; treat numeric model row IDs as display data only.
-- **Preserve session-history intent.** Let `chat-session` append the latest user message by default. Use `--pass-all-history` only when replacing stored history, and use `--legacy` only for a caller that requires cumulative legacy streaming.
+- **Resolve complete, stable inputs.** Discover resource IDs with the corresponding `list-*` or `get-*` command, and paginate beyond RAGFlow's 100-item list limit. Use the `identifier` from `list-models` (`<model>@<instance>@<provider>`, or `<model>@<provider>` for the default instance) for `--embedding-model` and `--llm-id`; treat numeric model row IDs as display data only.
+- **Preserve session-history intent.** Let `chat-session` append the latest user message by default. Use `--pass-all-history` only when replacing stored history.
 - **Protect operational secrets.** Keep `RAGFLOW_API_KEY`, provider keys, system tokens, beta values, and embed URLs containing `auth=` out of user-facing output. Supply provider credentials through `RAGFLOW_PROVIDER_API_KEY` or `--api-key-file`; reveal secret material only when the user explicitly requests copy-paste output.
 - **Use the correct public embed origin.** Pass `--origin` when the browser-facing RAGFlow URL differs from `RAGFLOW_URL`. Let the CLI reuse or create a beta token and bootstrap the embedded chat session.
 - **Start Agent DSL work from the guide.** Read [references/AGENT_GUIDE.md](references/AGENT_GUIDE.md) before authoring or debugging agents, and adapt its minimal examples instead of reconstructing the canvas schema from memory.
