@@ -34,6 +34,14 @@ Keep these values aligned before publishing:
 
 The authoritative release version is the newest heading under `README.md` → **Update Notes**. Bump that heading before each release; keep RAGFlow compatibility in `SKILL.md`'s description and requirements.
 
+## Select the RAGFlow baseline
+
+Read the official release list and release description, and select the highest published `vMAJOR.MINOR.PATCH` tag without a prerelease suffix. Exclude drafts, prereleases, nightly/dev tags, and `-rc`, alpha, or beta tags even if GitHub marks them `prerelease: false` or `latest`.
+
+Fetch upstream branches and tags, then inspect the selected tag's source on a local `codex/stable-<tag>` branch. Pin the commit SHA when reviewing routes and payloads. Only change the Skill baseline when a newer stable release exists; do not migrate it to a candidate release as part of a stable update.
+
+Verified on 2026-10-18: stable baseline remains [v0.27.2](https://github.com/infiniflow/ragflow/releases/tag/v0.27.2), commit `a024bea0cd93f39e6652a42bf84dd20c55bc560b`. GitHub's latest release is [v1.0.0-rc2](https://github.com/infiniflow/ragflow/releases/tag/v1.0.0-rc2), whose description explicitly identifies it as a release candidate despite `prerelease: false`.
+
 ## Pre-publish checks
 
 1. Confirm the CLI still starts:

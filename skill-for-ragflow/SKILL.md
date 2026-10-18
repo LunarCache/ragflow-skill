@@ -17,7 +17,7 @@ metadata:
 
 Operate common RAGFlow v0.27.2 workflows through `node {baseDir}/scripts/ragflow.js <command> [options]`. Prefer `--json` when parsing or chaining results. Prioritize daily operations over exhaustive API coverage.
 
-This package targets v0.27.2 and accepts only current API parameters. Use `--knn-top-k` for retrieval and `--session` for chat; no deprecated aliases or legacy streaming mode are supported.
+This package targets v0.27.2 and accepts only current API parameters. Use `--knn-top-k` for retrieval and `--session` for chat; no deprecated aliases or legacy streaming mode are supported. Treat `-rc`, alpha, beta, and nightly releases as separate targets; GitHub may label a release candidate as `latest`. Check `system-version` before using this skill with a newly upgraded deployment.
 
 ## Requirements
 

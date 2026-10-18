@@ -12,6 +12,12 @@ A Codex/OpenCode skill for operating [RAGFlow](https://github.com/infiniflow/rag
 
 ## Update Notes
 
+### v3.0.1 (RAGFlow v0.27.2)
+
+- Rechecked official releases on 2026-10-18: v0.27.2 remains the latest non-candidate stable version. The newer [v1.0.0-rc2](https://github.com/infiniflow/ragflow/releases/tag/v1.0.0-rc2) is a release candidate, even though GitHub marks it as latest.
+- Clarified stable-release selection and deployment version checks; retained the v0.27.2 API baseline and current parameter names.
+- Corrected ingestion examples to use the dedicated authorized client when purging existing tasks/chunks.
+
 ### v3.0.0 (RAGFlow v0.27.2)
 
 - Require explicit per-invocation confirmation for destructive CLI operations; programmatic clients default to blocking destructive requests.

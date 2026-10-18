@@ -134,8 +134,11 @@ await client.startParsing("<dataset_id>", ["<doc_id1>"]);
 // Stop parsing
 await client.stopParsing("<dataset_id>", ["<doc_id1>"]);
 
-// Start/rerun ingestion for ingestion-pipeline datasets
-await client.ingestDocuments(["<doc_id1>"], { run: "1", delete: true });
+// Start ingestion without purging existing tasks/chunks
+await client.ingestDocuments(["<doc_id1>"], { run: "1" });
+
+// After authorizing a purge, rerun with the dedicated destructive client
+await destructiveClient.ingestDocuments(["<doc_id1>"], { run: "1", delete: true });
 
 // Cancel ingestion for ingestion-pipeline datasets
 await client.ingestDocuments(["<doc_id1>"], { run: "2" });
