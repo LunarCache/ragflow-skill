@@ -121,10 +121,7 @@ The verified npm CLI on 2026-11-01 is `0.25.0`; `skill publish` is the canonical
 
 Use owner-qualified reads to select this publisher. If a release is not public, an authenticated owner can read `GET /api/v1/skills/skill-for-ragflow/versions/<version>/publication?ownerHandle=lunarcache`. A retained pending upload must be checked before submitting another version. Public `404` alone does not prove that no pending version exists.
 
-CLI 0.25.0 identifies upload-ticket, file-body, and final-publication failures. HTTP 500/timeouts may be transport or service failures. The observed `Too many writes in a short period of time` response is backend write pressure; honor its advertised reset and retry with bounded pacing, rather than restarting the complete upload repeatedly. The upstream [storage upload incident](https://github.com/openclaw/clawhub/issues/4182) describes related failures; it does not prove that every HTTP 500 has the same cause.
-
-The official [HTTP API](https://github.com/openclaw/clawhub/blob/0a3dfec7b2a0c6a2e47ae05422922dfc101f0dd9/docs/http-api.md) also accepts multipart `POST /api/v1/skills` with a JSON `payload` and repeated `files` blobs. This can avoid upload-ticket transport failures for small bundles, but does not avoid storage write pressure, authorization, or security checks. Never log bearer tokens, signed upload URLs, or upload tickets.
-
+CLI 0.25.0 identifies upload-ticket, file-body, and final-publication failures. `Too many writes in a short period of time` indicates backend write pressure; stop repeated uploads and check the upstream [storage upload incident](https://github.com/openclaw/clawhub/issues/4182). Never log bearer tokens, signed upload URLs, or upload tickets.
 
 ## Post-publish verification
 
@@ -172,9 +169,7 @@ Use version bumps consistently:
 - RAGFlow baseline: `v0.27.3`.
 - Validation: 69 tests passed, 2 live-server tests skipped; Skill validator and whitespace checks passed.
 - ClawHub dry run: 15 files, fingerprint `c949e00253b871fa66eb4146998ddfc340a6086448b9e99a8611c7d16633b871`.
-- ClawHub publication is not confirmed. On 2026-11-01, CLI `0.25.0` authenticated successfully as `LunarCache`, but failed at upload ticket 1/15. Direct multipart submission also returned HTTP 400: `Too many writes in a short period of time`. After honoring the advertised 46-second reset, a paced staged upload again failed at its first upload ticket with the same write-pressure error.
-- The authenticated, owner-scoped v4.0.0 publication endpoint returned 404 before the final paced attempt. That attempt never reached final submission. No v4.0.0 publication receipt or completed security scan has been verified.
-- Unscoped public reads also produced HTTP 500; an owner-scoped skill detail read succeeded. Read-failure diagnostic: `/api/v1/resolve` request ID `4223b03dc6b15c5d`. This identifies a failed read, not the storage write-pressure request.
+- ClawHub upload deferred at the maintainer's request on 2026-11-01 after repeated backend write-pressure errors. No v4.0.0 publication receipt or completed security scan has been verified. Check the exact-version publication status before resuming manually.
 
 ## Latest verified ClawHub release: v3.0.0
 
