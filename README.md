@@ -1,16 +1,24 @@
 # RAGFlow Skill
 
-A Codex/OpenCode skill for operating [RAGFlow](https://github.com/infiniflow/ragflow) v0.27.2 through a bundled Node.js CLI and API client.
+A Codex/OpenCode skill for operating [RAGFlow](https://github.com/infiniflow/ragflow) v0.27.3 through a bundled Node.js CLI and API client.
 
 ## Features
 
-- **Daily RAGFlow v0.27.2 workflow coverage** - datasets, documents, parsing, chunks, metadata, retrieval, RAPTOR/GraphRAG, chat sessions, agents, embeds, model discovery, providers, connectors, and health checks
+- **Daily RAGFlow v0.27.3 workflow coverage** - datasets, documents, parsing, chunks, metadata, retrieval, RAPTOR/GraphRAG, chat sessions, agents, embeds, model discovery, providers, connectors, and health checks
 - **Zero dependencies** - pure Node.js, no npm install required
 - **JSON-first output** - `--json` flag for machine-readable output suitable for pipelines
 - **Robust error handling** - automatic retries for transient failures, structured error envelopes
 - **Comprehensive documentation** - command reference, API examples, troubleshooting guide
 
 ## Update Notes
+
+### v4.0.0 (RAGFlow v0.27.3)
+
+- Updated the stable baseline to official tag `v0.27.3` (2026-10-23), commit `8090ffd8ba6098813d7f7ec2c4b8774f36c8423a`; v1.0.0-rc3 remains a separate release candidate.
+- Added chunk availability and image append/replace/remove options, plus chunk-ID and availability list filters.
+- Validate provider instance names and connector frequency fields before sending requests.
+- Breaking change: `start-parsing` and `stop-parsing` now require `--confirm-destructive`, since both server routes clear existing chunks. Programmatic callers use an explicitly authorized client.
+- Updated retrieval metadata behavior, document image access, and Agent DSL guidance for the stable release.
 
 ### v3.0.1 (RAGFlow v0.27.2)
 
@@ -117,7 +125,7 @@ node skill-for-ragflow/scripts/ragflow.js create-dataset --name "My Knowledge Ba
 # Upload and parse documents
 node skill-for-ragflow/scripts/ragflow.js upload-documents --dataset <id> --files ./doc.pdf
 node skill-for-ragflow/scripts/ragflow.js upload-documents --dataset <id> --files report.pdf=./tmp/task-output
-node skill-for-ragflow/scripts/ragflow.js start-parsing --dataset <id> --doc-ids <doc_id>
+node skill-for-ragflow/scripts/ragflow.js start-parsing --dataset <id> --doc-ids <doc_id> --confirm-destructive
 node skill-for-ragflow/scripts/ragflow.js wait-parsing --dataset <id> --doc-ids <doc_id>
 
 # Retrieve from dataset
@@ -222,7 +230,9 @@ const datasets = await client.listDatasets({ page: 1, page_size: 10 });
 // Document operations
 await client.uploadDocuments(dataset.id, ["./report.pdf"]);
 const docId = "<doc_id>";
-await client.startParsing(dataset.id, [docId]);
+// After authorizing parsing of this document (the server clears old chunks):
+const destructiveClient = createClient({ allowDestructive: true });
+await destructiveClient.startParsing(dataset.id, [docId]);
 const chunks = await client.listChunks(dataset.id, docId);
 
 // Retrieval
@@ -271,7 +281,7 @@ const agentAnswer = await client.agentChat(agentId, agentSession.id, "Summarize 
 ## Requirements
 
 - **Node.js** 18+ (uses built-in `node:test` and `fetch`)
-- **RAGFlow** v0.27.2 server
+- **RAGFlow** v0.27.3 server
 
 ## License
 

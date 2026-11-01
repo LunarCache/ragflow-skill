@@ -1004,6 +1004,8 @@ test("destructive requests require opt-in before network access, including raw a
   for (const [method, endpoint, json] of [
     ["DELETE", "/datasets", { ids: ["ds1"] }],
     ["DELETE", "/providers/OpenAI"],
+    ["POST", "/datasets/ds1/chunks", { document_ids: ["doc1"] }],
+    ["DELETE", "/datasets/ds1/chunks", { document_ids: ["doc1"] }],
     ["DELETE", "/datasets/ds1/documents/doc1/chunks", { chunk_ids: ["c1"] }],
     ["POST", "/datasets/ds1/metadata/update", { updates: [] }],
     ["POST", "/datasets/ds1/metadata/update", { selector: { document_ids: ["doc1"] }, deletes: ["author"] }],
@@ -1014,14 +1016,17 @@ test("destructive requests require opt-in before network access, including raw a
   }
   await assert.rejects(client._streamRequest("DELETE", "/datasets", {}), { code: "CONFIRMATION_REQUIRED" });
   assert.equal(sent, 0);
-  await client.stopParsing("ds1", ["doc1"]);
+  await assert.rejects(client.stopParsing("ds1", ["doc1"]), { code: "CONFIRMATION_REQUIRED" });
+  await assert.rejects(client.startParsing("ds1", ["doc1"]), { code: "CONFIRMATION_REQUIRED" });
   await client.updateMetadata("ds1", { selector: { document_ids: ["doc1"] }, updates: [] });
   await client.ingestDocuments(["doc1"], { run: "2", delete: true });
-  assert.equal(sent, 3);
+  assert.equal(sent, 2);
   const confirmed = new RagflowClient("http://127.0.0.1:1", "test-key", { allowDestructive: true });
   confirmed._doRequest = client._doRequest;
   await confirmed.deleteDatasets(["ds1"]);
-  assert.equal(sent, 4);
+  await confirmed.startParsing("ds1", ["doc1"]);
+  await confirmed.stopParsing("ds1", ["doc1"]);
+  assert.equal(sent, 5);
 });
 
 test("multipart names reject header injection and preserve quoted unicode filenames", async () => {
@@ -1043,4 +1048,37 @@ test("multipart names reject header injection and preserve quoted unicode filena
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("v0.27.3 validates chunk updates, connector intervals, and instance names before HTTP", async () => {
+  const client = new RagflowClient("http://127.0.0.1:1", "test-key", { maxRetries: 0 });
+  const sent = [];
+  client._doRequest = async (method, endpoint, headers, body) => {
+    sent.push({ method, endpoint, body: body ? JSON.parse(body) : undefined });
+    return true;
+  };
+  for (const data of [
+    { available: 2 }, { available: "false" }, { available: 0.5 },
+    { image_update_mode: "overwrite" }, { image_update_mode: "replace" },
+    { image_update_mode: "append" }, { image_update_mode: "remove", image_base64: "abc" },
+  ]) await assert.rejects(client.updateChunk("ds1", "doc1", "c1", data));
+  for (const instance_name of ["", "has space", "a/b", "a@b", "中文", null]) {
+    await assert.rejects(client.createProviderInstance("OpenAI", { instance_name }), /instance_name/);
+  }
+  for (const field of ["refresh_freq", "prune_freq", "timeout_secs"]) {
+    for (const value of [true, false, 1.5, "bad", null]) {
+      await assert.rejects(client.createConnector({ name: "C", source: "sitemap", config: {}, [field]: value }), /integer/);
+    }
+  }
+  await assert.rejects(client.createConnector({ name: "C", config: {} }), /source/);
+  assert.equal(sent.length, 0);
+  for (const mode of ["append", "replace", "remove"]) {
+    const data = { image_update_mode: mode, available: false };
+    if (mode !== "remove") data.image_base64 = "aW1hZ2U=";
+    await client.updateChunk("ds1", "doc1", "c1", data);
+    assert.deepEqual(sent.at(-1).body, data);
+  }
+  await client.createProviderInstance("OpenAI", { instance_name: "prod_2-US" });
+  await client.createConnector({ name: "C", source: "sitemap", config: {}, refresh_freq: "5", timeout_secs: 60 });
+  assert.equal(sent.length, 5);
 });

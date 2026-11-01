@@ -36,6 +36,23 @@ const REMOVED_CHAT_PARAMETERS = {
   pass_all_history: "Use pass_all_history_messages.",
 };
 
+function validateChunkUpdate(data) {
+  if (data.available !== undefined && ![true, false, 0, 1, "0", "1"].includes(data.available)) {
+    throw new Error("available must be 0, 1, true, or false");
+  }
+  if (data.image_update_mode !== undefined) {
+    if (!["append", "replace", "remove"].includes(data.image_update_mode)) {
+      throw new Error("image_update_mode must be append, replace, or remove");
+    }
+    if (data.image_update_mode !== "remove" && !data.image_base64) {
+      throw new Error("image_base64 is required for append or replace");
+    }
+    if (data.image_update_mode === "remove" && data.image_base64 !== undefined) {
+      throw new Error("Do not supply image_base64 when removing an image");
+    }
+  }
+}
+
 class RagflowClient {
   constructor(baseUrl, apiKey, options = {}) {
     if (!baseUrl) throw new Error("RAGFLOW_URL is required");
@@ -51,12 +68,13 @@ class RagflowClient {
   _assertDestructiveAllowed(method, endpoint, payload = {}) {
     payload = payload || {};
     const route = this._buildUrl(endpoint).pathname.replace(/^\/api\/v1/, "");
-    // DELETE /datasets/:id/chunks stops parsing; it does not delete stored chunks.
-    const deletesResources = method.toUpperCase() === "DELETE" && !/^\/datasets\/[^/]+\/chunks$/.test(route);
+    const deletesResources = method.toUpperCase() === "DELETE";
+    // Starting parsing clears old chunks and tasks before scheduling new work.
+    const reparse = method.toUpperCase() === "POST" && /^\/datasets\/[^/]+\/chunks$/.test(route);
     const metadataChange = /\/metadata\/update$|\/documents\/metadatas$/.test(route) &&
       (Boolean(payload.deletes?.length) || !payload.selector?.document_ids?.length);
     const purgeIngestion = route === "/documents/ingest" && String(payload.run ?? "1") === "1" && Boolean(payload.delete);
-    if (!this.allowDestructive && (deletesResources || metadataChange || purgeIngestion)) {
+    if (!this.allowDestructive && (deletesResources || reparse || metadataChange || purgeIngestion)) {
       const error = new Error("Destructive operation requires explicit confirmation: use --confirm-destructive in the CLI or allowDestructive: true on a dedicated client after verifying the target.");
       error.code = "CONFIRMATION_REQUIRED";
       throw error;
@@ -532,6 +550,7 @@ class RagflowClient {
   }
 
   async updateChunk(datasetId, documentId, chunkId, data) {
+    validateChunkUpdate(data);
     return this.request(
       "PATCH",
       `/datasets/${datasetId}/documents/${documentId}/chunks/${chunkId}`,
@@ -565,6 +584,16 @@ class RagflowClient {
   }
 
   async createConnector(data) {
+    for (const field of ["name", "source", "config"]) {
+      if (!data[field]) throw new Error(`${field} is required`);
+    }
+    for (const field of ["refresh_freq", "prune_freq", "timeout_secs"]) {
+      const value = data[field];
+      if (value !== undefined && !(typeof value === "number" && Number.isSafeInteger(value)) &&
+          !(typeof value === "string" && /^[+-]?\d+$/.test(value.trim()) && Number.isSafeInteger(Number(value)))) {
+        throw new Error(`${field} must be an integer`);
+      }
+    }
     return this.request("POST", `/connectors`, { json: data });
   }
 
@@ -882,6 +911,9 @@ class RagflowClient {
   }
 
   async createProviderInstance(providerName, data) {
+    if (typeof data.instance_name !== "string" || !/^[0-9A-Za-z_-]+$/.test(data.instance_name)) {
+      throw new Error("instance_name must contain only ASCII letters, digits, underscores, or hyphens");
+    }
     return this.request("POST", `/providers/${encodeURIComponent(providerName)}/instances`, { json: data });
   }
 

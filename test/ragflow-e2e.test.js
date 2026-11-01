@@ -540,7 +540,7 @@ test("stateful e2e workflow covers upload, parsing, retrieval, chat, and agent",
       body: { parser_config: { pages: [[1, 2]] }, meta_fields: { author: "Alice", status: "published" } },
     });
 
-    result = await runCli(server.url, ["start-parsing", "--dataset", datasetId, "--doc-ids", ...docIds, "--json"]);
+    result = await runCli(server.url, ["start-parsing", "--confirm-destructive", "--dataset", datasetId, "--doc-ids", ...docIds, "--json"]);
     assert.equal(result.status, 0, result.stderr);
     assertRequest(server.requests.at(-1), {
       method: "POST",

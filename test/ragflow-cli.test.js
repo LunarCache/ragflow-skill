@@ -412,8 +412,8 @@ test("CLI commands emit JSON only and call the expected RAGFlow endpoints", asyn
     { args: ["get-document", "--dataset", "ds1", "--id", "doc1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/documents", query: { id: "doc1" } } },
     { args: ["update-document", "--dataset", "ds1", "--id", "doc1", "--parser-config", `@${parserConfig}`, "--chunk-method", "knowledge_graph", "--enabled", "1", "--meta-fields", `@${metaFields}`, "--json"], expect: { method: "PATCH", path: "/api/v1/datasets/ds1/documents/doc1", body: { parser_config: { pages: [[1, 2]] }, chunk_method: "knowledge_graph", enabled: 1, meta_fields: { author: "Alice", status: "published" } } } },
     { args: ["delete-documents", "--confirm-destructive", "--dataset", "ds1", "--ids", "doc1", "--json"], expect: { method: "DELETE", path: "/api/v1/datasets/ds1/documents", body: { ids: ["doc1"] } } },
-    { args: ["start-parsing", "--dataset", "ds1", "--doc-ids", "doc1", "doc2", "--json"], expect: { method: "POST", path: "/api/v1/datasets/ds1/chunks", body: { document_ids: ["doc1", "doc2"] } } },
-    { args: ["stop-parsing", "--dataset", "ds1", "--doc-ids", "doc1", "--json"], expect: { method: "DELETE", path: "/api/v1/datasets/ds1/chunks", body: { document_ids: ["doc1"] } } },
+    { args: ["start-parsing", "--confirm-destructive", "--dataset", "ds1", "--doc-ids", "doc1", "doc2", "--json"], expect: { method: "POST", path: "/api/v1/datasets/ds1/chunks", body: { document_ids: ["doc1", "doc2"] } } },
+    { args: ["stop-parsing", "--confirm-destructive", "--dataset", "ds1", "--doc-ids", "doc1", "--json"], expect: { method: "DELETE", path: "/api/v1/datasets/ds1/chunks", body: { document_ids: ["doc1"] } } },
     { args: ["wait-parsing", "--dataset", "ds1", "--doc-ids", "doc1", "--timeout", "1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/documents" } },
     { args: ["list-chunks", "--dataset", "ds1", "--document", "doc1", "--page", "1", "--page-size", "2", "--keywords", "risk", "--id", "chunk1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/documents/doc1/chunks", query: { page: 1, page_size: 2, keywords: "risk", id: "chunk1" } } },
     { args: ["get-chunk", "--dataset", "ds1", "--document", "doc1", "--chunk", "chunk1", "--json"], expect: { method: "GET", path: "/api/v1/datasets/ds1/documents/doc1/chunks/chunk1" } },
@@ -859,7 +859,7 @@ test("agent-chat parses event-style SSE chunks", async () => {
   }
 });
 
-test("retrieval rejects invalid v0.27.2 candidate settings before sending HTTP", async () => {
+test("retrieval rejects invalid v0.27.3 candidate settings before sending HTTP", async () => {
   const server = await createMockServer();
   try {
     for (const [options, message] of [
@@ -1031,5 +1031,57 @@ test("invalid embed origins fail before token discovery or creation", async () =
       assert.match(JSON.parse(result.stdout).error.message, /origin/i);
     }
     assert.equal(server.requests.length, 0);
+  } finally { await server.close(); }
+});
+
+test("v0.27.3 chunk filters and image updates send current payloads", async () => {
+  const server = await createMockServer();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ragflow-image-"));
+  const file = path.join(dir, "figure.png");
+  const image = Buffer.from([137, 80, 78, 71, 0, 255]);
+  fs.writeFileSync(file, image);
+  try {
+    let result = await runCli(server.url, ["list-chunks", "--dataset", "ds1", "--document", "doc1", "--chunk-ids", "c1", "c2", "c1", "--available", "false", "--json"]);
+    assert.equal(result.status, 0, result.stdout);
+    const query = new URL(server.requests.at(-1).url, server.url).searchParams;
+    assert.equal(query.get("chunk_ids"), "c1,c2");
+    assert.equal(query.get("available"), "false");
+    for (const mode of ["append", "replace", "remove"]) {
+      const args = ["update-chunk", "--dataset", "ds1", "--document", "doc1", "--chunk", "c1", "--image-update-mode", mode, "--available", "false", "--json"];
+      if (mode !== "remove") args.push("--image-file", file);
+      result = await runCli(server.url, args);
+      assert.equal(result.status, 0, result.stdout);
+      const expected = { available: 0, image_update_mode: mode };
+      if (mode !== "remove") expected.image_base64 = image.toString("base64");
+      assertRequest(server.requests.at(-1), { method: "PATCH", path: "/api/v1/datasets/ds1/documents/doc1/chunks/c1", body: expected });
+    }
+    const count = server.requests.length;
+    for (const extra of [["--available", "2"], ["--image-update-mode", "invalid"], ["--image-update-mode", "replace"], ["--image-update-mode", "remove", "--image-file", file]]) {
+      result = await runCli(server.url, ["update-chunk", "--dataset", "ds1", "--document", "doc1", "--chunk", "c1", "--json", ...extra]);
+      assert.notEqual(result.status, 0, result.stdout);
+    }
+    assert.equal(server.requests.length, count);
+  } finally {
+    await server.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("parsing refuses missing or false confirmation before HTTP", async () => {
+  const server = await createMockServer();
+  try {
+    for (const command of ["start-parsing", "stop-parsing"]) {
+      for (const extra of [[], ["--confirm-destructive", "false"]]) {
+        const result = await runCli(server.url, [command, "--dataset", "ds1", "--doc-ids", "doc1", "--json", ...extra]);
+        assert.notEqual(result.status, 0);
+        assert.equal(JSON.parse(result.stdout).error.code, "CONFIRMATION_REQUIRED");
+      }
+    }
+    assert.equal(server.requests.length, 0);
+    for (const command of ["start-parsing", "stop-parsing"]) {
+      const result = await runCli(server.url, [command, "--dataset", "ds1", "--doc-ids", "doc1", "--confirm-destructive", "--json"]);
+      assert.equal(result.status, 0, result.stdout);
+    }
+    assert.equal(server.requests.length, 2);
   } finally { await server.close(); }
 });

@@ -35,7 +35,7 @@ const client = createClient();
 
 `createClient()` reads `RAGFLOW_URL` and `RAGFLOW_API_KEY` from the environment and then fills missing values from the bundled `.env` file. Existing environment variables take precedence. See [Configuration](#configuration) below.
 
-Destructive requests fail with `CONFIRMATION_REQUIRED` before network access by default. After verifying authorization and target scope, create a dedicated client with `const destructiveClient = createClient({ allowDestructive: true });` for deletion, metadata removal or unscoped metadata updates, and ingestion with `delete: true`. Use that client for the deletion examples below; ordinary clients remain suitable for reads and scoped updates.
+Destructive requests fail with `CONFIRMATION_REQUIRED` before network access by default. After verifying authorization and target scope, create a dedicated client with `const destructiveClient = createClient({ allowDestructive: true });` for starting/stopping parsing, deletion, metadata removal or unscoped metadata updates, and ingestion with `delete: true`. Use that client for the deletion examples below; ordinary clients remain suitable for reads and scoped updates.
 
 ## Dataset
 
@@ -90,7 +90,7 @@ await client.updateDocument("<dataset_id>", "<doc_id>", {
 await destructiveClient.deleteDocuments("<dataset_id>", ["<doc_id1>", "<doc_id2>"]);
 ```
 
-RAGFlow v0.27.2 defines document updates as `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. `updateDocument()` sends that request directly.
+RAGFlow v0.27.3 defines document updates as `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. `updateDocument()` sends that request directly.
 
 You can also filter documents by metadata:
 
@@ -119,7 +119,7 @@ const doc = await client.downloadDocument(datasetId, documentId);
 // Download by document ID
 const doc = await client.downloadDocumentById(documentId);
 
-// Preview a document inline (v0.27.2)
+// Preview a document inline (v0.27.3)
 const preview = await client.previewDocument(documentId);
 ```
 
@@ -129,10 +129,10 @@ Downloads/previews are normalized from binary HTTP responses into `{ content, en
 
 ```javascript
 // Start parsing (returns immediately)
-await client.startParsing("<dataset_id>", ["<doc_id1>"]);
+await destructiveClient.startParsing("<dataset_id>", ["<doc_id1>"]);
 
 // Stop parsing
-await client.stopParsing("<dataset_id>", ["<doc_id1>"]);
+await destructiveClient.stopParsing("<dataset_id>", ["<doc_id1>"]);
 
 // Start ingestion without purging existing tasks/chunks
 await client.ingestDocuments(["<doc_id1>"], { run: "1" });
@@ -179,6 +179,10 @@ await destructiveClient.deleteChunks("<dataset_id>", "<doc_id>", ["<chunk_id1>"]
 const graph = await client.getDocumentStructureGraph("<dataset_id>", "<doc_id>");
 await destructiveClient.deleteDocumentStructureGraph("<dataset_id>", "<doc_id>");
 ```
+
+`updateChunk()` also accepts `available` (0/1 or boolean), `image_base64`, and `image_update_mode` (`append`, `replace`, `remove`). Append/replace require image data; remove must omit it. `listChunks()` supports `chunk_ids` (comma-separated IDs) and `available` (`"true"`/`"false"`); it returns `{ total, chunks, doc }`.
+
+Both `startParsing()` and `stopParsing()` clear the selected documents' existing chunks on the server and require the dedicated destructive client. Starting parsing clears old tasks as well.
 
 `updateChunk()` uses `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}/chunks/{chunk_id}`. `ingestDocuments()` is for ingestion-pipeline datasets; use `startParsing()`/`stopParsing()` for the built-in chunking pipeline.
 
@@ -473,17 +477,17 @@ For chatbot completions, RAGFlow creates the embedded session on the first no-se
 ## LLM Models
 
 ```javascript
-// List available models (v0.27.2 flat tenant model catalog)
+// List available models (v0.27.3 flat tenant model catalog)
 const models = await client.listModels({ type: "chat" });
 // GET /api/v1/models -> [{ name, model_type, provider_name, model_id, ... }]
 // Client returns the server catalog array; CLI list-models groups it as { groups, total }.
 ```
 
-RAGFlow v0.27.2 exposes model discovery at `/api/v1/models` (replacing the legacy `/v1/llm/my_llms`, which was removed in v0.27.0). Authentication uses `RAGFLOW_API_KEY`. There is no legacy endpoint fallback; `listModelsLegacy()` has been removed.
+RAGFlow v0.27.3 exposes model discovery at `/api/v1/models` (replacing the legacy `/v1/llm/my_llms`, which was removed in v0.27.0). Authentication uses `RAGFLOW_API_KEY`. There is no legacy endpoint fallback; `listModelsLegacy()` has been removed.
 
 Use `identifier` from CLI `list-models`, including `<model>@<instance>@<provider>` for a named instance. For the default instance, use model names plus provider suffixes when creating resources, for example `qwen-turbo@Tongyi-Qianwen` for `llm_id` and `text-embedding-v4@Tongyi-Qianwen` for `embedding_model`. Some deployments return numeric `id` fields; those are server row IDs and should not be sent as `llm_id`.
 
-## Tenant Models (v0.27.2)
+## Tenant Models (v0.27.3)
 
 These methods use the `/api/v1/models` routes and authenticate with `RAGFLOW_API_KEY`.
 
@@ -506,13 +510,13 @@ await client.setDefaultModel({
 // PATCH /api/v1/models/default
 ```
 
-## Model Providers (v0.27.2)
+## Model Providers (v0.27.3)
 
-RAGFlow v0.27.2 provides provider/instance/model management under `/api/v1/providers`. All methods authenticate
+RAGFlow v0.27.3 provides provider/instance/model management under `/api/v1/providers`. All methods authenticate
 with `RAGFLOW_API_KEY`. Path segments are URL-encoded, so model identifiers containing `@` or `/` are handled
 automatically.
 
-In v0.27.2, each provider instance supports `PUT` and `GET` on `/instances/{instance_id_or_name}` for updating a
+In v0.27.3, each provider instance supports `PUT` and `GET` on `/instances/{instance_id_or_name}` for updating a
 single instance's credentials; the CLI uses `GET /instances` to list and `POST /instances` to create.
 
 ```javascript
@@ -592,3 +596,5 @@ export RAGFLOW_API_KEY=ragflow-xxxxx
 - **Production: Use HTTPS.** Set `RAGFLOW_URL=https://...` for production deployments to protect the API key in transit.
 - **Dedicated keys.** Use a dedicated, rotatable automation key; RAGFlow API keys are tenant-scoped rather than permission-scoped.
 - **Protect secrets.** Never commit `RAGFLOW_API_KEY` to version control. Use environment variables or a `.env` file that is excluded from git.
+
+Provider instance names must match `[0-9A-Za-z_-]+`. Connector `refresh_freq`, `prune_freq`, and `timeout_secs` must be integers; invalid values fail locally before HTTP.

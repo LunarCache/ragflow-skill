@@ -23,8 +23,8 @@
 | `embed-code` creates a new token unexpectedly | No existing system token had a `beta` value | This matches RAGFlow's embed UI behavior; use `list-system-tokens` to inspect current tokens |
 | `embed-chat` returns only the prologue or an empty answer | The embedded chatbot route was called without `session_id`; RAGFlow uses that first call to create the iframe session | Use the CLI `embed-chat` command, which bootstraps `session_id` automatically, or call `ensureEmbeddedChatSession()` before `embeddedChat()` in API code |
 | `list-models` returns Unauthorized | The `/api/v1/models` endpoint rejected the API key | Verify `RAGFLOW_API_KEY` is valid and has not expired |
-| `update-document` gets Method Not Allowed | The server does not match the v0.27.2 route shape expected by this skill | Use a v0.27.2-compatible server; document updates are sent with `PATCH` |
-| A list command fails with a `page_size` error | RAGFlow v0.27.2 caps `page_size` at 100 on list endpoints | The CLI clamps `--page-size` to 100 and warns; lower the value or page through results |
+| `update-document` gets Method Not Allowed | The server does not match the v0.27.3 route shape expected by this skill | Use a v0.27.3-compatible server; document updates are sent with `PATCH` |
+| A list command fails with a `page_size` error | RAGFlow v0.27.3 caps `page_size` at 100 on list endpoints | The CLI clamps `--page-size` to 100 and warns; lower the value or page through results |
 | `Invalid URL` | `RAGFLOW_URL` is empty or malformed | Use a server root such as `http://localhost:9380`; bare hosts like `localhost:9380` are normalized to `http://...` |
 | Connection refused | `RAGFLOW_URL` is wrong or the server is down | Verify the URL and that the RAGFlow server is running |
 | API key exposed in logs or chat | The API key was shared or logged | Never share keys in chat; regenerate leaked keys and prefer `RAGFLOW_PROVIDER_API_KEY` or `--api-key-file` for provider credentials |
@@ -34,10 +34,17 @@
 
 In `--json` mode, command failures are emitted on stdout as `{ "error": { "message", "raw_message", "code", "status", "command" } }` and exit non-zero. `delete-chunks` may also include `existing_chunk_ids`, `missing_chunk_ids`, `retry_count`, `retries`, and `delete_chunk_diagnostics`.
 
-## v0.27.2 retrieval and parser changes
+## v0.27.3 retrieval and parser changes
 
 - If retrieval rejects `rerank_candidates_count`, set `--rerank-candidates-count` to at least `--page × --top-n`. Without flags the server uses page 1, page size 30, and 64 candidates; page 3 at size 30 needs at least 90 candidates.
 - If `knn_num_candidates` is rejected, make it at least `knn_top_k` (1024 by default). Prefer `--knn-top-k` over deprecated `--top-k`.
 - Connector creation requires `name`, `source`, and `config`; `type` is not a substitute for `source`.
 - Dataset/document responses omit legacy `parser_config.graphrag` and `parser_config.raptor` entries. Missing keys do not prove that an indexing task failed; inspect `trace-graphrag` / `trace-raptor` and graph output.
 - Document structure graphs now include total and returned entity/relation counts. A limited or filtered graph can return fewer nodes than the totals.
+
+## Stable-release behavior
+
+- An empty retrieval metadata condition skips metadata filtering; an actual condition still intersects with explicit document IDs. There is no filter-only retrieval fallback for unrelated questions.
+- Use thumbnail URLs returned by document listings (`/api/v1/documents/{doc_id}/thumbnail`). Document-scoped images use `/api/v1/documents/{doc_id}/images/{image_id}` with authenticated document access; do not reconstruct storage URLs.
+- A `CONFIRMATION_REQUIRED` response from parsing is expected: both start and stop clear existing chunks. Verify the target and authorization before adding `--confirm-destructive`.
+- Chunk image modes are `append`, `replace`, and `remove`; only append/replace accept image data. Availability must be 0/1 or a boolean in API payloads.

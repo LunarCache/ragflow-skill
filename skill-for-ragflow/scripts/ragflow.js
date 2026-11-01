@@ -724,12 +724,20 @@ async function listChunks(opts) {
     ["keywords", "keywords"],
     ["id", "id"],
   ]);
+  if (opts.chunkIds) params.chunk_ids = uniqueList(opts.chunkIds).join(",");
+  if (opts.available !== undefined) {
+    if (![true, false, "true", "false"].includes(opts.available)) {
+      throw new Error("--available accepts only true or false");
+    }
+    params.available = String(opts.available);
+  }
   const result = await client.listChunks(dataset, document, params);
-  if (Array.isArray(result) && result.length === 0) {
+  const chunks = Array.isArray(result?.chunks) ? result.chunks : [];
+  if (chunks.length === 0) {
     warn("No chunks found");
     if (!outputMode.jsonOnly) return;
   } else {
-    ok(`Found ${Array.isArray(result) ? result.length : "chunks"}`);
+    ok(`Found ${chunks.length} chunk(s)`);
   }
   json(result);
 }
@@ -794,6 +802,18 @@ async function updateChunk(opts) {
   const data = {};
   if (opts.content) data.content = opts.content;
   if (opts.keywords) data.important_keywords = listValue(opts.keywords);
+  if (opts.available !== undefined) {
+    if (![true, false, "true", "false"].includes(opts.available)) {
+      throw new Error("--available accepts only true or false");
+    }
+    data.available = opts.available === true || opts.available === "true" ? 1 : 0;
+  }
+  if (opts.imageUpdateMode !== undefined) data.image_update_mode = opts.imageUpdateMode;
+  const imageFile = opts.imageFile;
+  if (imageFile) {
+    if (data.image_update_mode === "remove") throw new Error("--image-file cannot be used with remove");
+    data.image_base64 = fs.readFileSync(imageFile).toString("base64");
+  }
   info(`Updating chunk ${chunk}...`);
   const result = await client.updateChunk(dataset, document, chunk, data);
   ok("Chunk updated");
@@ -1902,7 +1922,9 @@ ${C.bold}Common Options:${C.reset}
     --model-provider    Provider name (set-default-model)
     --model-instance    Instance name (set-default-model)
     --model-name        Model name (provider model commands)
-    --available         List system-available providers (list-providers)
+    --available         Provider discovery; true/false chunk availability
+    --image-file        Image file for update-chunk
+    --image-update-mode append, replace, or remove (update-chunk)
     --instance          Provider instance name
     --instances         Provider instance names (multiple values)
     --api-key-file      Read provider API key from a file (recommended)

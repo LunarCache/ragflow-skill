@@ -1,6 +1,6 @@
 # Command Reference
 
-Deletion commands, metadata removal or unscoped metadata updates, and ingestion with `--delete` require `--confirm-destructive` after the target operation is authorized. Missing or false confirmation fails before the destructive HTTP request. Ordinary reads and stopping parsing do not require it.
+`start-parsing`, `stop-parsing`, deletion commands, metadata removal or unscoped metadata updates, and ingestion with `--delete` require `--confirm-destructive` after the target operation is authorized. Missing or false confirmation fails before the destructive HTTP request. Ordinary reads do not require it. Both parsing routes clear existing chunks; starting parsing also clears old tasks.
 
 Practical CLI reference for `scripts/ragflow.js`, organized around common RAGFlow workflows. It intentionally prioritizes daily operations over exhaustive REST API coverage.
 
@@ -45,7 +45,7 @@ On command failure with `--json`, the CLI exits non-zero and prints a structured
 | [RAG Assistant Operation](#rag-assistant-operation) | Create chat assistants, manage sessions, and run Q&A |
 | [Agent Operation](#agent-operation) | Create tool-capable agents, manage sessions, and run agent chat |
 | [Embedded Website Access](#embedded-website-access) | Generate iframe/widget code and call shared chatbots/agentbots |
-| [Discovery and Configuration](#discovery-and-configuration) | Inspect available LLM models, and manage model providers/instances (v0.27.2) |
+| [Discovery and Configuration](#discovery-and-configuration) | Inspect available LLM models, and manage model providers/instances (v0.27.3) |
 | [System Operations](#system-operations) | Check health/version and inspect log-level settings |
 
 ## Knowledge Base Setup
@@ -61,7 +61,7 @@ node {baseDir}/scripts/ragflow.js update-dataset --id <id> --name "New Name"
 node {baseDir}/scripts/ragflow.js delete-datasets --ids <id1> <id2> --confirm-destructive
 ```
 
-When you provide `--embedding-model` to a real v0.27.2 server, use the tenant model identifier format `<model_name>@<provider>`, for example `text-embedding-v4@Tongyi-Qianwen`. Use `list-models` to discover available model/provider pairs.
+When you provide `--embedding-model` to a real v0.27.3 server, use the tenant model identifier format `<model_name>@<provider>`, for example `text-embedding-v4@Tongyi-Qianwen`. Use `list-models` to discover available model/provider pairs.
 
 Typical flow:
 
@@ -84,7 +84,7 @@ Create a connector (tenant scope; no dataset required).
 
 **Example**: `node ragflow.js create-connector --config @connector.json --json`
 
-The `--config` file is the complete request body, passed through verbatim. Use `name`, `source`, and nested `config` (not `type`). For example, v0.27.2's Sitemap connector:
+The `--config` file is the complete request body, passed through verbatim. Use `name`, `source`, and nested `config` (not `type`). For example, v0.27.3's Sitemap connector:
 
 ```json
 {
@@ -125,7 +125,7 @@ node {baseDir}/scripts/ragflow.js download-document --dataset <id> --id <doc_id>
 node {baseDir}/scripts/ragflow.js preview-document --id <doc_id> --output ./preview.pdf
 ```
 
-`update-document` follows the current v0.27.2 RAGFlow route and sends `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. It accepts `name`, `parser_config`, `chunk_method`, `enabled`, and `meta_fields`.
+`update-document` follows the current v0.27.3 RAGFlow route and sends `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}`. It accepts `name`, `parser_config`, `chunk_method`, `enabled`, and `meta_fields`.
 
 `ingest-documents` wraps `POST /api/v1/documents/ingest` for datasets configured with an ingestion pipeline. Use `--run 1` to start/rerun ingestion, `--run 2` to cancel ingestion, and `--delete` when rerunning should delete existing tasks and chunks first. Built-in chunking datasets should keep using `start-parsing` and `stop-parsing`.
 
@@ -149,8 +149,8 @@ Downloads and previews return file bytes. With `--output <path>`, the CLI writes
 ### Parsing workflow
 
 ```bash
-node {baseDir}/scripts/ragflow.js start-parsing --dataset <id> --doc-ids <doc_id1>
-node {baseDir}/scripts/ragflow.js stop-parsing --dataset <id> --doc-ids <doc_id1>
+node {baseDir}/scripts/ragflow.js start-parsing --dataset <id> --doc-ids <doc_id1> --confirm-destructive
+node {baseDir}/scripts/ragflow.js stop-parsing --dataset <id> --doc-ids <doc_id1> --confirm-destructive
 node {baseDir}/scripts/ragflow.js wait-parsing --dataset <id> --doc-ids <doc_id1> --timeout 120
 ```
 
@@ -169,6 +169,16 @@ node {baseDir}/scripts/ragflow.js delete-chunks --dataset <id> --document <doc_i
 node {baseDir}/scripts/ragflow.js get-document-graph --dataset <id> --document <doc_id>
 node {baseDir}/scripts/ragflow.js delete-document-graph --dataset <id> --document <doc_id> --confirm-destructive
 node {baseDir}/scripts/repro-delete-chunks.js --confirm-destructive
+```
+
+`list-chunks` accepts `--chunk-ids <id1> <id2>` and `--available true|false` in addition to pagination, keyword search, and exact `--id` lookup. Its response is `{ total, chunks, doc }`; paginate the `chunks` array. New manually added chunks are ordered after enabled source chunks.
+
+`update-chunk` accepts `--available true|false`, `--image-file <path>` (read as base64), and `--image-update-mode append|replace|remove`. Append combines the old and new images vertically; replace overwrites the image; remove needs no file. Supplying a file without a mode uses the server's append default. Example:
+
+```bash
+node {baseDir}/scripts/ragflow.js update-chunk --dataset <id> --document <doc_id> --chunk <chunk_id> --image-file ./figure.png --image-update-mode replace
+node {baseDir}/scripts/ragflow.js update-chunk --dataset <id> --document <doc_id> --chunk <chunk_id> --image-update-mode remove
+node {baseDir}/scripts/ragflow.js update-chunk --dataset <id> --document <doc_id> --chunk <chunk_id> --available false
 ```
 
 `update-chunk` uses the current `PATCH /api/v1/datasets/{dataset_id}/documents/{document_id}/chunks/{chunk_id}` route. `get-document-graph` and `delete-document-graph` wrap the document structure graph routes under `/structure/graph`.
@@ -265,7 +275,7 @@ node {baseDir}/scripts/ragflow.js retrieve \
 | `--datasets` | `-d` | - | Dataset IDs |
 | `--similarity` | `-s` | 0.2 | Similarity threshold (0-1) |
 | `--top-n` | `-n` | 30 | Number of retrieved chunks; sent as RAGFlow `page_size` |
-| `--knn-top-k` | | 1024 | Vector-neighbor count; preferred in v0.27.2 |
+| `--knn-top-k` | | 1024 | Vector-neighbor count; preferred in v0.27.3 |
 | `--knn-num-candidates` | | max(2048, knn_top_k) | ANN candidate pool; must be at least knn_top_k |
 | `--rerank-candidates-count` | | 64 | Candidate count; must be at least page × page_size |
 | `--page` | | 1 | Result page (positive integer) |
@@ -319,7 +329,7 @@ node {baseDir}/scripts/ragflow.js chat-session --chat <chat_id> --session <sessi
 
 `chat-session` uses `POST /api/v1/chat/completions` with `chat_id` and `session_id` in the body. When `--messages` is provided, the CLI extracts the last `role: "user"` message as `question`; use `--question` when you already have a single user prompt.
 
-`--pass-all-history` sets `pass_all_history_messages: true`, which replaces the entire stored history with the submitted messages array instead of appending only the latest message (the default behavior in v0.27.2).
+`--pass-all-history` sets `pass_all_history_messages: true`, which replaces the entire stored history with the submitted messages array instead of appending only the latest message (the default behavior in v0.27.3).
 
 
 Use this path when the user wants multi-turn Q&A over documents without building a full agent workflow.
@@ -541,11 +551,11 @@ node {baseDir}/scripts/ragflow.js list-models --type embedding
 
 `list-models` lists configured models, grouped by type or factory. Use its `identifier` (`<model>@<instance>@<provider>`) directly in create operations; the two-part `<model>@<provider>` form selects the default instance. Distinct instances remain separate even when model names match. `--include-details` adds returned tenant/provider/instance IDs and rank locally; it does not send an unsupported `include_details` query. `--all` retains rows explicitly marked unavailable, but the catalog may omit availability state: `configured` is not a successful connection test. Use `verify-provider` for a connection check.
 
-RAGFlow v0.27.2 exposes model discovery at `/api/v1/models` (the legacy `/v1/llm/my_llms` route was removed in v0.27.0; the CLI no longer calls it). Authentication uses `RAGFLOW_API_KEY`.
+RAGFlow v0.27.3 exposes model discovery at `/api/v1/models` (the legacy `/v1/llm/my_llms` route was removed in v0.27.0; the CLI no longer calls it). Authentication uses `RAGFLOW_API_KEY`.
 
 For create operations, use model names plus provider suffixes such as `qwen-turbo@Tongyi-Qianwen` or `text-embedding-v4@Tongyi-Qianwen`. If `list-models` shows numeric `model_id` fields, treat them as server row IDs, not values for `--llm-id` or `--embedding-model`.
 
-### Tenant models (v0.27.2)
+### Tenant models (v0.27.3)
 
 These commands use the `/api/v1/models` routes (the same routes `list-models` uses).
 
@@ -557,9 +567,9 @@ These commands use the `/api/v1/models` routes (the same routes `list-models` us
 
 `set-default-model` requires `--model-type` (one of `chat`, `embedding`, `rerank`, `asr`, `vision`, `tts`, `ocr`). Provide `--model-provider`, `--model-instance`, and `--model-name` to set a default; omit them to clear it.
 
-### Model providers (v0.27.2)
+### Model providers (v0.27.3)
 
-v0.27.2 provides provider/instance/model management under `/api/v1/providers`. An "instance" holds one set of credentials, and a provider can have multiple instances (multiple API keys). Instances are now individually addressable as `/instances/<id_or_name>` with `GET`/`PUT` support.
+v0.27.3 provides provider/instance/model management under `/api/v1/providers`. An "instance" holds one set of credentials, and a provider can have multiple instances (multiple API keys). Instances are now individually addressable as `/instances/<id_or_name>` with `GET`/`PUT` support.
 
 | Command | Purpose | Options |
 |---------|---------|---------|
@@ -591,3 +601,5 @@ node {baseDir}/scripts/ragflow.js system-version
 node {baseDir}/scripts/ragflow.js get-log-levels
 node {baseDir}/scripts/ragflow.js set-log-level --pkg-name ragflow --level INFO
 ```
+
+Provider instance names must match `[0-9A-Za-z_-]+` and must be unique within a provider. Connector creation requires `name`, `source`, and `config`; optional `refresh_freq`, `prune_freq`, and `timeout_secs` must be integers, not booleans or fractional values.

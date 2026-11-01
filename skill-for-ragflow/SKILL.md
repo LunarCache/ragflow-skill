@@ -1,6 +1,6 @@
 ---
 name: skill-for-ragflow
-description: Operate RAGFlow v0.27.2 deployments through a bundled Node CLI for everyday knowledge-base setup, document ingestion, parsing, retrieval, chat assistants, agents, GraphRAG, connectors, models, and diagnostics. Use when a request explicitly involves a RAGFlow server, dataset, document pipeline, or RAGFlow agent.
+description: Operate RAGFlow v0.27.3 deployments through a bundled Node CLI for everyday knowledge-base setup, document ingestion, parsing, retrieval, chat assistants, agents, GraphRAG, connectors, models, and diagnostics. Use when a request explicitly involves a RAGFlow server, dataset, document pipeline, or RAGFlow agent.
 metadata:
   openclaw:
     requires:
@@ -15,9 +15,9 @@ metadata:
 
 # RAGFlow Skill
 
-Operate common RAGFlow v0.27.2 workflows through `node {baseDir}/scripts/ragflow.js <command> [options]`. Prefer `--json` when parsing or chaining results. Prioritize daily operations over exhaustive API coverage.
+Operate common RAGFlow v0.27.3 workflows through `node {baseDir}/scripts/ragflow.js <command> [options]`. Prefer `--json` when parsing or chaining results. Prioritize daily operations over exhaustive API coverage.
 
-This package targets v0.27.2 and accepts only current API parameters. Use `--knn-top-k` for retrieval and `--session` for chat; no deprecated aliases or legacy streaming mode are supported. Treat `-rc`, alpha, beta, and nightly releases as separate targets; GitHub may label a release candidate as `latest`. Check `system-version` before using this skill with a newly upgraded deployment.
+This package targets v0.27.3 and accepts only current API parameters. Use `--knn-top-k` for retrieval and `--session` for chat; no deprecated aliases or legacy streaming mode are supported. Treat `-rc`, alpha, beta, and nightly releases as separate targets; GitHub may label a release candidate as `latest`. Check `system-version` before using this skill with a newly upgraded deployment.
 
 ## Requirements
 
@@ -28,7 +28,7 @@ This package targets v0.27.2 and accepts only current API parameters. Use `--knn
 ## Security Notes
 
 - **Use HTTPS in production.** Production deployments should use `https://` for `RAGFLOW_URL` to protect the API key in transit. Local development (`http://localhost`) is acceptable for testing.
-- **Use a dedicated, rotatable API key for automation.** RAGFlow v0.27.2 API keys are tenant-scoped rather than permission-scoped.
+- **Use a dedicated, rotatable API key for automation.** RAGFlow v0.27.3 API keys are tenant-scoped rather than permission-scoped.
 - **Protect your API key.** Never share `RAGFLOW_API_KEY` in chat messages or commit it to version control. Use environment variables or the skill's `.env` file.
 
 ## Quick Command Reference
@@ -58,7 +58,7 @@ This package targets v0.27.2 and accepts only current API parameters. Use `--knn
 
 1. `create-dataset --name "My KB" --chunk-method naive`
 2. `upload-documents --dataset <id> --files ./doc1.pdf ./doc2.txt`
-3. `start-parsing --dataset <id> --doc-ids <doc_id1> <doc_id2>`
+3. `start-parsing --dataset <id> --doc-ids <doc_id1> <doc_id2> --confirm-destructive`
 4. `wait-parsing --dataset <id> --doc-ids <doc_id1> <doc_id2>`
 5. `retrieve --question "What is X?" --datasets <id>`
 
@@ -82,7 +82,7 @@ This package targets v0.27.2 and accepts only current API parameters. Use `--knn
 2. `list-connectors`
 3. `get-connector --id <id>`
 
-### Model provider workflow (v0.27.2)
+### Model provider workflow (v0.27.3)
 
 1. `list-providers --available` to see configurable providers
 2. `add-provider --name <provider>`
@@ -116,7 +116,7 @@ The first step in any RAGFlow operation is resolving the target resource ID. Aft
 
 ## Key Constraints
 
-- **Confirm destructive scope.** Verify that the user authorized the exact target before deletion, metadata removal or dataset-wide metadata changes, or ingestion that purges existing tasks/chunks. Then pass `--confirm-destructive` for that invocation; the CLI otherwise refuses the request. Existing explicit authorization and cleanup of temporary resources from the requested workflow do not require a repeated question. Never add the flag automatically in response to a refusal.
+- **Confirm destructive scope.** Verify that the user authorized the exact target before starting/stopping parsing (both clear existing chunks), deletion, metadata removal or dataset-wide metadata changes, or ingestion that purges existing tasks/chunks. Then pass `--confirm-destructive` for that invocation; the CLI otherwise refuses the request. Existing explicit authorization and cleanup of temporary resources from the requested workflow do not require a repeated question. Never add the flag automatically in response to a refusal.
 - **Choose the ingestion path first.** For built-in chunking, upload documents, adjust their parser configuration when needed, then run `start-parsing`. For ingestion-pipeline datasets, use `ingest-documents` instead.
 - **Preserve source filenames.** When an attachment is stored under a temporary or task-generated path, upload it as `--files <original-name>=<path>` so RAGFlow retains the user-facing name.
 - **Resolve complete, stable inputs.** Discover resource IDs with the corresponding `list-*` or `get-*` command, and paginate beyond RAGFlow's 100-item list limit. Use the `identifier` from `list-models` (`<model>@<instance>@<provider>`, or `<model>@<provider>` for the default instance) for `--embedding-model` and `--llm-id`; treat numeric model row IDs as display data only.
