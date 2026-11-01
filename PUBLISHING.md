@@ -154,7 +154,16 @@ Use version bumps consistently:
 - minor: new commands, new optional features, additive API support
 - major: breaking CLI changes, changed required environment variables, incompatible behavior changes
 
-## Latest verified release: v3.0.0
+## v4.0.0 release status
+
+- GitHub published: 2026-11-01, tag `v4.0.0`, source commit `eae5f19877c57f1f6dc9831f7f9c8b7713802d7f`.
+- Release: https://github.com/LunarCache/ragflow-skill/releases/tag/v4.0.0
+- RAGFlow baseline: `v0.27.3`.
+- Validation: 69 tests passed, 2 live-server tests skipped; Skill validator and whitespace checks passed.
+- ClawHub dry run: 15 files, fingerprint `c949e00253b871fa66eb4146998ddfc340a6086448b9e99a8611c7d16633b871`.
+- ClawHub publication is not yet confirmed. Upload attempts returned a server error and a request timeout; the public API also returned HTTP 500. No v4.0.0 publication receipt or completed security scan has been verified.
+
+## Latest verified ClawHub release: v3.0.0
 
 - Published: 2026-09-25; public latest verified as `3.0.0`.
 - Version ID: `k9751zbncyhe1w5047frb3b8t98f3c2n`
