@@ -48,7 +48,7 @@ function json(data) {
 function cliErrorMessage(err) {
   const message = err.message || String(err);
   if (err.code === "ECONNREFUSED") {
-    return "Cannot connect to RAGFlow server. Check RAGFLOW_URL in .env";
+    return "Cannot connect to RAGFlow server. Check the RAGFLOW_URL environment variable";
   }
   if (err.code === "ECONNRESET") {
     return "Connection reset by RAGFlow server. The server may be restarting";
@@ -57,7 +57,7 @@ function cliErrorMessage(err) {
     return "Request timed out. The server may be slow or unreachable";
   }
   if (message.includes("RAGFLOW_URL is required") || message.includes("RAGFLOW_API_KEY is required")) {
-    return `${message}. Configure .env file with RAGFLOW_URL and RAGFLOW_API_KEY`;
+    return `${message}. Set the RAGFLOW_URL and RAGFLOW_API_KEY environment variables`;
   }
   if (err.code) {
     return `API Error: ${message}`;

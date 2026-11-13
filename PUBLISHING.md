@@ -171,9 +171,9 @@ Use version bumps consistently:
 - ClawHub dry run: 15 files, fingerprint `c949e00253b871fa66eb4146998ddfc340a6086448b9e99a8611c7d16633b871`.
 - ClawHub upload accepted on 2026-11-13 using CLI `0.26.0`; the earlier backend write-pressure failure no longer blocked this upload.
 - Version ID: `k97a8gjg04m0ywmzw5ytx50wd18j5zqm`; publication attempt: `zx77mjfybatk9e2hmc1y2yz3rh8j4xng`.
-- Receipt: `pending-publication`. Follow-up owner checks report `pending_checks` with ClawScan and TruffleHog both `pending`; public latest remains `3.0.0`. Do not resubmit while this retained version awaits checks.
+- Public latest confirmed as `4.0.0` on 2026-11-13; scanner verdict was `suspicious` despite clean registry moderation. Findings included undeclared system-token administration, an ambiguous retrieval trigger, and incomplete analysis. The file manifest contained the expected 15 files.
 
-## Latest verified ClawHub release: v3.0.0
+## Historical verified ClawHub release: v3.0.0
 
 - Published: 2026-09-25; public latest verified as `3.0.0`.
 - Version ID: `k9751zbncyhe1w5047frb3b8t98f3c2n`
@@ -185,3 +185,23 @@ Use version bumps consistently:
 - Static analysis: `clean`, no findings.
 - Clawscan: `clean`, verdict `benign`, confidence `high`.
 - Registry moderation: `clean`, `isSuspicious: false`, `isMalwareBlocked: false`.
+
+## v4.0.1 review remediation
+
+- Submitted 2026-11-13 using CLI `0.26.0`; 15 files.
+- Disclose token administration and environment/network/file scope; constrain the example retrieval trigger to the configured dataset; allow only documented RAGFlow keys in the skill-local environment file.
+- No extra preapproved host tools were declared just to silence the scanner. Required references and authorized administration remain present.
+- Validation: 70 tests passed, 2 opt-in live tests skipped; Skill metadata and whitespace checks passed.
+- Fingerprint: `aef964a2973f6f1ba38f7fae618a744409b00d66eb869bbdb62af37f1ea66891`.
+- Version ID: `k978p98qm2ajkjtz3vx18fh1818j4xdz`; publication attempt `zx73ww4v9n4azzr4gqm6vzgbys8j4ae4`.
+- Published as v4.0.1; the token-disclosure and retrieval-trigger findings disappeared, but the report remained suspicious due to partial reference inspection and environment-file/tool-scope findings.
+
+## Latest verified ClawHub release: v5.0.0
+
+- Breaking change: process environment only; removed implicit credential-file loading and the unused local config template.
+- Kept all supported API method details in four linked workflow references and a complete overview index; condensed troubleshooting without removing administrative capability disclosures or confirmation rules.
+- Validation: 70 passed, 2 live-server tests skipped; Skill validator, local reference links and whitespace checks passed.
+- Submitted 2026-11-13; 19 files; fingerprint `0962b4361e8fdc85883d9c9b0158fed2005d8a3f116aa4d4341bf24a58323c35`.
+- Version ID `k97e5kpwswyyrhpcz4fj7kp21h8j5j0g`; attempt `zx762vds7zwhwmxy0n36h04h1s8j507p`.
+- Publication verified on 2026-11-13: stage `published`, public `latest` is `5.0.0`.
+- Overall security: `clean`; ClawScan `clean` / `benign` with medium confidence. SkillSpector retains one LOW tool-scope note, score 7, recommendation `CAUTION`; `hasWarnings` remains true. This is not a zero-warning release.

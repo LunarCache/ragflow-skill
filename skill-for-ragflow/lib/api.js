@@ -1021,26 +1021,7 @@ class RagflowClient {
 
 }
 
-function loadEnv() {
-  const envPath = path.resolve(__dirname, "..", ".env");
-  if (fs.existsSync(envPath)) {
-    const content = fs.readFileSync(envPath, "utf-8");
-    for (const line of content.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const eq = trimmed.indexOf("=");
-      if (eq > 0) {
-        const key = trimmed.slice(0, eq);
-        if (process.env[key] === undefined || process.env[key] === "") {
-          process.env[key] = trimmed.slice(eq + 1);
-        }
-      }
-    }
-  }
-}
-
 function createClient(options = {}) {
-  loadEnv();
   return new RagflowClient(
     process.env.RAGFLOW_URL,
     process.env.RAGFLOW_API_KEY,

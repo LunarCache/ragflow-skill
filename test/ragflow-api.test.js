@@ -1082,3 +1082,27 @@ test("v0.27.3 validates chunk updates, connector intervals, and instance names b
   await client.createConnector({ name: "C", source: "sitemap", config: {}, refresh_freq: "5", timeout_secs: 60 });
   assert.equal(sent.length, 5);
 });
+
+test("client uses process environment and does not read skill-local credential files", () => {
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const path = require("node:path");
+  const { spawnSync } = require("node:child_process");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ragflow-env-test-"));
+  try {
+    fs.mkdirSync(path.join(dir, "lib"));
+    fs.copyFileSync(path.resolve(__dirname, "../skill-for-ragflow/lib/api.js"), path.join(dir, "lib/api.js"));
+    fs.writeFileSync(path.join(dir, ".env"), "RAGFLOW_URL=http://127.0.0.1:9380\nRAGFLOW_API_KEY=file-key\nRAGFLOW_PROVIDER_API_KEY=provider-key\nUNRELATED_SETTING=injected\nNODE_OPTIONS=--inspect\n");
+    const result = spawnSync(process.execPath, ["-e", `
+      const assert = require('node:assert/strict');
+      const {createClient} = require('./lib/api.js');
+      const client = createClient();
+      assert.equal(client.apiKey, 'existing-key');
+      assert.equal(client.baseUrl, 'http://127.0.0.1:9999');
+      assert.equal(process.env.RAGFLOW_PROVIDER_API_KEY, undefined);
+      assert.equal(process.env.UNRELATED_SETTING, undefined);
+      assert.equal(process.env.NODE_OPTIONS, undefined);
+    `], { cwd: dir, env: { PATH: process.env.PATH, RAGFLOW_URL: "http://127.0.0.1:9999", RAGFLOW_API_KEY: "existing-key" }, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});

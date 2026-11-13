@@ -12,6 +12,17 @@ A Codex/OpenCode skill for operating [RAGFlow](https://github.com/infiniflow/rag
 
 ## Update Notes
 
+### v5.0.0 (RAGFlow v0.27.3)
+
+- Breaking change: configure credentials through process environment variables; the client no longer reads local environment files. Set/export `RAGFLOW_URL` and `RAGFLOW_API_KEY` in the shell or host runtime.
+- Reorganize API references by workflow and shorten troubleshooting while retaining all supported methods, administration capabilities, and confirmation requirements.
+
+### v4.0.1 (RAGFlow v0.27.3)
+
+- Disclose system-token administration, embedding, environment/network access, and local file access in the skill purpose and security notes.
+- Scope the tool-agent example's retrieval trigger to the configured dataset and explicit dataset searches.
+- Limit skill-local environment loading to documented RAGFlow settings; ignore unrelated environment keys.
+
 ### v4.0.0 (RAGFlow v0.27.3)
 
 - Updated the stable baseline to official tag `v0.27.3` (2026-10-23), commit `8090ffd8ba6098813d7f7ec2c4b8774f36c8423a`; v1.0.0-rc3 remains a separate release candidate.
@@ -102,12 +113,9 @@ A Codex/OpenCode skill for operating [RAGFlow](https://github.com/infiniflow/rag
 ### 1. Configure Environment
 
 ```bash
-# Copy the example config into the skill package
-cp skill-for-ragflow/.env.example skill-for-ragflow/.env
-
-# Edit with your RAGFlow credentials
-RAGFLOW_URL=http://localhost:9380
-RAGFLOW_API_KEY=ragflow-xxxxx
+# Supply credentials through the shell or host environment
+export RAGFLOW_URL=http://localhost:9380
+export RAGFLOW_API_KEY=ragflow-xxxxx
 ```
 
 ### 2. Run the CLI

@@ -1,6 +1,6 @@
 ---
 name: skill-for-ragflow
-description: Operate RAGFlow v0.27.3 deployments through a bundled Node CLI for everyday knowledge-base setup, document ingestion, parsing, retrieval, chat assistants, agents, GraphRAG, connectors, models, and diagnostics. Use when a request explicitly involves a RAGFlow server, dataset, document pipeline, or RAGFlow agent.
+description: Operate RAGFlow v0.27.3 deployments through a bundled Node CLI for everyday knowledge-base setup, document ingestion, parsing, retrieval, chat assistants, agents, GraphRAG, connectors, models, embedded website access, system-token listing/creation/deletion, and diagnostics. Use when a request explicitly involves a RAGFlow server, dataset, document pipeline, or RAGFlow agent.
 metadata:
   openclaw:
     requires:
@@ -21,15 +21,18 @@ This package targets v0.27.3 and accepts only current API parameters. Use `--knn
 
 ## Requirements
 
-- Set `RAGFLOW_URL` and `RAGFLOW_API_KEY` in the environment or this skill's `.env`.
+- Set `RAGFLOW_URL` and `RAGFLOW_API_KEY` in the process environment.
 - Use Node.js to run bundled scripts.
 - Run `system-health --json` after first-time setup to verify service reachability and dependencies. Run `system-version --json` to identify the deployment version. Use `list-datasets --page-size 1 --json` to verify API-key authentication.
 
 ## Security Notes
 
+- **Administrative scope.** This skill can read and change the configured RAGFlow tenant, configure model-provider credentials, and list/create/delete system tokens used for shared-site embedding. Run these operations only within the user's authorized scope. `embed-code` can create a system token when none exists; token deletion requires explicit destructive confirmation.
+- **Environment, network, and files.** Node scripts read `RAGFLOW_URL` and `RAGFLOW_API_KEY`, optional `RAGFLOW_PROVIDER_API_KEY`, and documented RAGFlow retry/diagnostic settings. They send authenticated requests to the configured RAGFlow server; server-side provider/connector actions may contact configured external services. Local reads include selected uploads, JSON/config/key files; downloads write only to a requested output path. These are capability disclosures, not host permission grants. The skill does not inspect SSH, cloud-provider, or unrelated application credentials.
+
 - **Use HTTPS in production.** Production deployments should use `https://` for `RAGFLOW_URL` to protect the API key in transit. Local development (`http://localhost`) is acceptable for testing.
 - **Use a dedicated, rotatable API key for automation.** RAGFlow v0.27.3 API keys are tenant-scoped rather than permission-scoped.
-- **Protect your API key.** Never share `RAGFLOW_API_KEY` in chat messages or commit it to version control. Use environment variables or the skill's `.env` file.
+- **Protect your API key.** Never share `RAGFLOW_API_KEY` in chat messages or commit it to version control. Use process environment variables supplied by the host.
 
 ## Quick Command Reference
 
