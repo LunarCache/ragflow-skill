@@ -169,7 +169,9 @@ Use version bumps consistently:
 - RAGFlow baseline: `v0.27.3`.
 - Validation: 69 tests passed, 2 live-server tests skipped; Skill validator and whitespace checks passed.
 - ClawHub dry run: 15 files, fingerprint `c949e00253b871fa66eb4146998ddfc340a6086448b9e99a8611c7d16633b871`.
-- ClawHub upload deferred at the maintainer's request on 2026-11-01 after repeated backend write-pressure errors. No v4.0.0 publication receipt or completed security scan has been verified. Check the exact-version publication status before resuming manually.
+- ClawHub upload accepted on 2026-11-13 using CLI `0.26.0`; the earlier backend write-pressure failure no longer blocked this upload.
+- Version ID: `k97a8gjg04m0ywmzw5ytx50wd18j5zqm`; publication attempt: `zx77mjfybatk9e2hmc1y2yz3rh8j4xng`.
+- Receipt: `pending-publication`. Follow-up owner checks report `pending_checks` with ClawScan and TruffleHog both `pending`; public latest remains `3.0.0`. Do not resubmit while this retained version awaits checks.
 
 ## Latest verified ClawHub release: v3.0.0
 
